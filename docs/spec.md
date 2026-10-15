@@ -242,6 +242,9 @@ README の先頭近くに書く。
 
 - `permissionDecision: "deny"` の画面の表示。exit 2 の表示はこの環境で見た (`PreToolUse:Bash hook error: [<コマンド>]: <stderr>`。「hook error」と出る)。deny を返すテスト用のプラグインを `claude -p --plugin-dir` で動かそうとしたが、`claude -p` の認証が切れていて (`OAuth session expired`) 動かせなかった。どちらで止めるかは exit 2 に決めたので、残るのは表示の違いを README に書くかどうかだけだ。
 - `multiple` の項目が `CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES` にどういう形 (JSON の配列か、区切り文字か) で入るか。ドキュメントに書かれておらず、上と同じ理由で試せていない。実装の最初に確かめる。
+- マーケットプレイスの名前は `claude plugin validate --strict` を通した。公開時の登録で弾かれるかは未確認。
+- フックの `onFailure: "block"` は 2.1.295 以降の機能で、開発に使った 2.1.293 では実機で確かめていない。古い版ではこのキーが無視され、終了コードの動作になる。
+- Read への deny と、フックの exit 2 で、画面の表示や Claude に届く文面がどう違うか。どちらで止めるかは exit 2 に決めてあり、違いは未確認。
 - リポジトリの settings の `enabledPlugins` でこのプラグインが無効にされている場合の扱い。無効だとこのプラグインのフックは一つも動かないので、プラグイン自身では知らせられない。「保証しないこと」に書くほかに手を打つか (たとえば base-harness-setting のような個人の構成の側で検知するか) を決める。
 
 ### メッセージの案
