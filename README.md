@@ -7,7 +7,7 @@ A Claude Code plugin that stops dangerous operations with hooks, and runs your p
 ## What it does not guarantee
 
 - The guards read command strings and file paths. They are not a sandbox. The same operation routed through python or another interpreter is not stopped.
-- The guards do not parse the shell. These shapes are sent to a confirmation (ask) instead of being judged: a quoted or split command name or subcommand (`"git" push`, `git "push"`), a `git push` argument built from quotes or expansions (`ma"in"`, `$B`), a line continuation inside a command with a guarded command word, and heredoc markers inside quotes, comments or arithmetic, or with a terminator word the guard cannot read (`END-1`). If this check itself fails, the command is asked too. Mentions of these shapes inside a commit message or a plain heredoc body are not asked.
+- The guards do not parse the shell. Shapes they cannot read (a quoted or split command name or subcommand, a `git push` argument built from quotes or expansions, a line continuation inside a guarded command, an odd heredoc marker) are sent to a confirmation (ask) instead of being judged. See [Known limits](CHANGELOG.md#known-limits).
 - Grep is stopped only when its `path` is a secret file. A directory search whose results include secret files cannot be stopped.
 - The verify loop makes Claude fix failures. It is not enforcement: a turn can still end without running `verify.sh`.
 - The hook input format and the plugin mechanism can change between Claude Code versions. See [Tested versions](#tested-versions).
@@ -31,7 +31,7 @@ Each decision is one of: **block** (exit 2, cannot be approved), **ask** (a conf
 | Area | Block | Ask |
 |---|---|---|
 | Protected branches | push to a protected branch (a bare `git push` on one included) | first push to an empty remote |
-| Push shape | `--no-verify`, `--mirror`, `--delete` / `-d` / `:ref`, `--all` | force push (`+ref` included), every work-branch push when `confirm_push` is on |
+| Push shape | `--no-verify`, `--mirror`, `--delete` / `-d` / `:ref`, `--prune`, `--all` | force push (`+ref` included), every work-branch push when `confirm_push` is on |
 | Hook bypass | `core.hooksPath`, `git -c`, `--config-env`, `GIT_CONFIG_*`, alias / include settings | |
 | Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, keychain values | |
 | Harness | Bash writes to `~/.claude` settings / hooks / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks` | Bash writes to `.claude/hooks`, `.claude/verify.sh`, `.github/workflows` |
@@ -52,7 +52,7 @@ Plugins cannot ship permission rules, so these live in a hook.
 
 ### MCP tools (`guard-mcp.sh`)
 
-A tool whose name contains `delete`, `destroy`, `drop`, `purge`, `remove`, `truncate`, `wipe`, `deploy`, `publish`, `rollback` or `secret` asks. Tools named `query`, `sql`, `execute` ask when the input is a data-changing statement.
+A tool whose name contains `delete`, `destroy`, `drop`, `purge`, `remove`, `truncate`, `wipe`, `deploy`, `publish`, `rollback` or `secret` asks, and so do `merge_pull_request`, `merge_branch`, `push_files`, `push_branch` and `force_push`. Tools named `query`, `sql`, `execute` or `exec` ask when the input is a data-changing statement.
 
 ### Packs
 
@@ -79,7 +79,7 @@ The plugin is built to stay out of the context window:
 
 - The guards and the hook that marks the start of a turn print nothing when they pass. Only a block or an ask adds a few lines.
 - The only text always in the session is the one-line description of `/code-guard:setup-verify`. Its instructions load when you run it, and they tell Claude to read build files sparingly.
-- A failing `verify.sh` returns at most the last 80 lines and 6000 bytes, and at most `verify_max_retry` times per turn. Keep `verify.sh` quiet on success and fast (`--quiet` flags help).
+- A failing `verify.sh` returns at most 80 lines and 6000 bytes. Keep `verify.sh` quiet on success and fast (`--quiet` flags help).
 
 ## Settings
 

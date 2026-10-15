@@ -7,7 +7,7 @@ Claude Code が実行しようとする危ない操作をフックで止め、�
 ## 保証しないこと
 
 - ガードはコマンドの文字列とファイルのパスを見る判定で、サンドボックスではありません。python などを経由した同じ操作は止められません。
-- ガードはシェルを構文解析しません。次の形は、判定せずに確認 (ask) に回します。引用符で囲んだ・分割したコマンド名やサブコマンド (`"git" push`、`git "push"`)、引用符や展開で組み立てた `git push` の引数 (`ma"in"`、`$B`)、守る対象のコマンドの語を含むコマンドの行継続、引用符・コメント・算術式の中にある heredoc の印、ガードが読めない終端の語 (`END-1`) を持つ heredoc です。この確認自体が失敗したときも ask にします。コミットメッセージや、ただの heredoc の本文に書いただけの場合は ask にしません。
+- ガードはシェルを構文解析しません。読み切れない形 (引用符で囲んだ・分割したコマンド名やサブコマンド、引用符や展開で組み立てた `git push` の引数、守る対象のコマンドの行継続、読めない heredoc の印) は、判定せずに確認 (ask) に回します。[既知の制限](CHANGELOG.md#known-limits)を参照してください。
 - Grep は、対象の `path` が機密値のファイルのときだけ止めます。ディレクトリを検索して結果に機密値のファイルが混ざる場合は止められません。
 - 検証ループは Claude に直させる仕組みで、強制ではありません。`verify.sh` を通さずに終える方法は残ります。
 - フックの入力の形やプラグインの仕組みは、Claude Code の版で変わることがあります。[動作を確かめた版](#動作を確かめた版)を見てください。
@@ -31,7 +31,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 | 分類 | block | ask |
 |---|---|---|
 | 守るブランチ | 守るブランチへの push (そのブランチにいて引数なしの `git push` も) | 空のリモートへの初回 push |
-| push の形 | `--no-verify`、`--mirror`、`--delete` / `-d` / `:ref`、`--all` | force push (`+ref` も)、`confirm_push` が有効なときの作業ブランチへの push |
+| push の形 | `--no-verify`、`--mirror`、`--delete` / `-d` / `:ref`、`--prune`、`--all` | force push (`+ref` も)、`confirm_push` が有効なときの作業ブランチへの push |
 | フックの回避 | `core.hooksPath`、`git -c`、`--config-env`、`GIT_CONFIG_*`、alias と include の設定 | |
 | 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、キーチェーンの値 | |
 | ハーネス | `~/.claude` の settings・フック・プラグイン、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` の Bash での書き換え | `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
@@ -52,7 +52,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 ### MCP ツール (`guard-mcp.sh`)
 
-ツール名に `delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`deploy`、`publish`、`rollback`、`secret` の語があれば ask です。`query`、`sql`、`execute` のツールは、入力が変更系の文のとき ask です。
+ツール名に `delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`deploy`、`publish`、`rollback`、`secret` の語があるか、`merge_pull_request`、`merge_branch`、`push_files`、`push_branch`、`force_push` なら ask です。`query`、`sql`、`execute`、`exec` のツールは、入力が変更系の文のとき ask です。
 
 ### パック
 
@@ -79,7 +79,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 - ガードと、回の始めを記録するフックは、通ったときは何も出力しません。block と ask のときだけ数行が足されます。
 - セッションに常に載るのは `/code-guard:setup-verify` の 1 行の説明だけです。手順の本文は実行したときに読み込まれ、ビルドの設定を最小限だけ読むよう書いてあります。
-- 失敗した `verify.sh` が返すのは、末尾 80 行かつ 6000 バイトまでで、1 回の中で `verify_max_retry` 回までです。`verify.sh` は成功時に静かで、速く終わるようにしてください (`--quiet` などが効きます)。
+- 失敗した `verify.sh` が返すのは、80 行かつ 6000 バイトまでです。`verify.sh` は成功時に静かで、速く終わるようにしてください (`--quiet` などが効きます)。
 
 ## 設定
 

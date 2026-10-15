@@ -26,6 +26,7 @@ claude-code-guard/
 │   ├── guard-bash.sh       # PreToolUse(Bash)
 │   ├── guard-file.sh       # PreToolUse(Read|Edit|Write|MultiEdit|NotebookEdit|Grep)
 │   ├── guard-mcp.sh        # PreToolUse(mcp__.*)
+│   ├── fmt-terraform.sh    # PostToolUse(Edit|Write): .tf を整形
 │   ├── verify-loop.sh      # UserPromptSubmit と Stop
 │   └── lib/                # 共通の関数 (判定結果の出力、設定の読み込み)
 ├── skills/
@@ -36,6 +37,11 @@ claude-code-guard/
 │   └── test-verify.sh
 ├── docs/
 │   └── spec.md
+├── .github/workflows/
+│   └── ci.yml              # ubuntu と macOS でテストを流す
+├── .claude/review/
+│   └── checklist.md        # 敵対的レビューの観点 (このリポジトリ用)
+├── CLAUDE.md
 ├── README.md
 ├── README.ja.md
 ├── CHANGELOG.md
@@ -70,16 +76,16 @@ This is a policy block, not a hook failure. Do not retry it another way (another
 
 ### 依存が無いとき
 
-jq が無いとフックの入力を読めない。そのときは、そのフックが受け持つ操作をすべて block し、jq の入れ方を返す (今のガードと同じく、迷ったら止める)。perl も同じ扱いにする。
+jq が無いとフックの入力を読めない。そのときは、そのフックが受け持つ操作をすべて block し、jq の入れ方を返す (迷ったら止める)。perl も同じ扱いにする。
 
 ### 中核のルール (Bash)
 
-設定で外せない。判定は今の `guard-bash.sh` を移植する。
+設定で外せない。
 
 | 分類 | block | ask |
 |---|---|---|
 | 守るブランチ | 守るブランチへの push (初回を除く)。守るブランチにいて引数なしの `git push` も含む | 空のリモートへの初回 push |
-| push の形 | `--no-verify`、`--mirror`、`--delete` (`-d` と `:` で始まる refspec を含む)、`--all` | force push (`+` で始まる refspec を含む) |
+| push の形 | `--no-verify`、`--mirror`、`--delete` (`-d` と `:` で始まる refspec を含む)、`--prune`、`--all` | force push (`+` で始まる refspec を含む) |
 | フックの回避 | `core.hooksPath` の変更、`git -c` と `--config-env`、`GIT_CONFIG_*`、alias と include の設定 | |
 | 機密値 | `.env` と `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産 (`*.p8`、`*.p12`、`*.mobileprovision`、`AuthKey_*`)、サービスアカウント鍵、CLI の認証情報 (`~/.aws`、`~/.config/gcloud`、gh のトークン、`~/.kube`、`~/.docker`、`~/.netrc` など)、キーチェーンの値 | |
 | ハーネス | `~/.claude` の settings とフック、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks`、プラグインの置き場所 (`~/.claude/plugins`) の Bash での書き換え | プロジェクトの `.claude/hooks` と `.claude/verify.sh` の Bash での書き換え |
@@ -87,11 +93,11 @@ jq が無いとフックの入力を読めない。そのときは、そのフ�
 | 消す操作 | ルートやホームを対象にした `rm -r` | ビルドの生成物でないディレクトリの `rm -r`、`git clean`、`reset --hard`、`restore`、`checkout --`、`stash drop`、`branch -D` |
 | マシンの設定 | | `sudo`、`launchctl` の登録、`crontab` (`-l` を除く)、`defaults write` / `delete` |
 
-コミットメッセージや PR 本文 (`-m`、`--body`、heredoc の本文) に書いただけの文字列は判定から除く。`bash -c` や `eval`、python などを含むコマンドでは除かない。これも今の判定と同じ。
+コミットメッセージや PR 本文 (`-m`、`--body`、heredoc の本文) に書いただけの文字列は判定から除く。`bash -c` や `eval`、python などを含むコマンドでは除かない。
 
 ### ファイルのツールのガード
 
-プラグインは `permissions` の deny / ask を配れない (プラグインの settings で効くのは `agent` と `subagentStatusLine` だけ)。今は `settings.json` の deny / ask が受け持っているものを、PreToolUse のフック `guard-file.sh` に移す。
+プラグインは `permissions` の deny / ask を配れない (プラグインの settings で効くのは `agent` と `subagentStatusLine` だけ)。その代わりに、PreToolUse のフック `guard-file.sh` で止める。
 
 | ツール | block | ask |
 |---|---|---|
@@ -104,7 +110,7 @@ Glob はファイル名を返すだけなので対象にしない。
 
 ### MCP のガード
 
-今の `guard-mcp.sh` をそのまま移す。ツール名に削除・公開・秘密の変更を表す語 (`delete`、`destroy`、`drop`、`deploy`、`publish`、`secret` など) があれば ask。SQL を受けるツール (`query`、`sql`、`execute`) で変更系の文なら ask。
+ツール名に削除・公開・秘密の変更を表す語 (`delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`deploy`、`publish`、`rollback`、`secret`) か、ブランチへの書き込みを表す名前 (`merge_pull_request`、`merge_branch`、`push_files`、`push_branch`、`force_push`) があれば ask。SQL を受けるツール (`query`、`sql`、`execute`、`exec`) で変更系の文なら ask。
 
 ### パック
 
@@ -131,7 +137,7 @@ Glob はファイル名を返すだけなので対象にしない。
 |---|---|
 | 走る条件 | プロジェクトに `.claude/verify.sh` があり、回の始め (UserPromptSubmit) から作業ツリーが変わっている (回の中のコミットを含む) |
 | `verify.sh` が無いとき | 何もしない。メッセージも出さない |
-| 変わったかの判定 | HEAD、追跡中のファイルの差分、追跡外のファイルの名前と中身をまとめた指紋で比べる (今の `verify-on-stop.sh` と同じ) |
+| 変わったかの判定 | HEAD、追跡中のファイルの差分、追跡外のファイルの名前と中身をまとめた指紋で比べる |
 | 失敗したとき | exit 2 で止め、出力の末尾 80 行を Claude に返す |
 | やり直しの回数 | `userConfig` の `verify_max_retry` (既定 3)。最後の回では、直せなければ報告して終えるよう伝える。超えたらユーザーに systemMessage で知らせて通す |
 | 時間切れ | 600 秒 |
@@ -139,8 +145,6 @@ Glob はファイル名を返すだけなので対象にしない。
 | `verify.sh` の編集 | ガードが ask にする (テストを消して通すのを防ぐ) |
 
 雛形は `/code-guard:setup-verify` のスキルで作る。スキルはプロジェクトの言語とビルドの設定 (`package.json`、`pyproject.toml`、`go.mod` など) を見て、速く終わる lint とテストを入れた `.claude/verify.sh` を提案する。書き込む前にユーザーに中身を見せる。
-
-今の雛形にある「未設定なら exit 78」の仕組みは使わない。
 
 検証ループは Claude に直させるための仕組みで、強制ではない。`verify.sh` を通さずに終える方法は残る。
 
@@ -187,8 +191,8 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 
 | 対象 | 方法 |
 |---|---|
-| ガード | `tests/test-guard.sh`。今の `test-guard.sh` のケースを移し、ファイルのツールのガードとパックの有効・無効のケースを足す |
-| 検証ループ | `tests/test-verify.sh`。今の `test-base.sh` の検証ループの部分を移す |
+| ガード | `tests/test-guard.sh`。Bash のガード、ファイルのツールのガード、パックの有効・無効、曖昧な形の確認を試す |
+| 検証ループ | `tests/test-verify.sh` |
 | マニフェスト | `claude plugin validate --strict` |
 | CI | GitHub Actions で ubuntu と macOS。public リポジトリなので無料 |
 
