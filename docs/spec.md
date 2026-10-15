@@ -39,9 +39,9 @@ claude-code-guard/
 │   └── spec.md
 ├── .github/workflows/
 │   └── ci.yml              # ubuntu と macOS でテストを流す
-├── .claude/review/
-│   └── checklist.md        # 敵対的レビューの観点 (このリポジトリ用)
-├── CLAUDE.md
+├── .claude/
+│   ├── CLAUDE.md           # このリポジトリで作業するときの決まり
+│   └── review/checklist.md # 敵対的レビューの観点 (このリポジトリ用)
 ├── README.md
 ├── README.ja.md
 ├── CHANGELOG.md
