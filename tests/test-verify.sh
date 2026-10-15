@@ -126,5 +126,18 @@ if true; then
   EXTRA_ENV=""
 fi
 
+# A verify.sh killed by a signal is a failure, not a success
+set_verify 'kill -KILL $$'
+run_hook k1 mark; echo k >>"$repo/change.txt"
+run_hook k1
+[ "$RC" = 2 ] || ng "a verify.sh killed by a signal passed (rc=$RC)"
+
+# An unwritable state directory must not loop forever: pass with a notice
+set_verify 'exit 1'
+EXTRA_ENV="CLAUDE_PLUGIN_DATA=/dev/null/x TMPDIR=/dev/null/y"
+run_hook w1
+[ "$RC" = 0 ] && grep -q 'systemMessage' <<<"$OUT" || ng "an unwritable state directory kept stopping (rc=$RC)"
+EXTRA_ENV=""
+
 if [ "$fail" = 0 ]; then echo "all $n verify loop checks passed"; fi
 exit "$fail"

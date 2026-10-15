@@ -4,6 +4,7 @@
 #   Read, Grep                          block secret files
 #   Edit, Write, MultiEdit, NotebookEdit  block *.tfvars, .git/config, .git/hooks; ask for the harness files
 # Grep is stopped only when its path is a secret file. A directory search that returns secrets cannot be stopped.
+# Paths are compared in lower case: macOS volumes are usually case-insensitive (.ENV is .env).
 # When you change this, add cases to tests/test-guard.sh and run it.
 set -uo pipefail
 
@@ -12,36 +13,42 @@ set -uo pipefail
 need_cmd jq
 
 input="$(cat)"
-tool="$(jq -r '.tool_name // ""' <<<"$input")"
-path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // ""' <<<"$input")"
+tool="$(jq -er '.tool_name // ""' <<<"$input")" \
+  || block "could not read the hook input (not valid JSON); blocking everything this hook covers"
+path="$(jq -er '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // ""' <<<"$input")" \
+  || block "could not read the hook input (not valid JSON); blocking everything this hook covers"
 [ -n "$path" ] || exit 0
 
-# Normalize ~ and $HOME so the patterns see one form
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+# Normalize ~ and lower-case so the patterns see one form
 path="${path/#\~/$HOME}"
+path_l="$(lower "$path")"
+home_l="$(lower "$HOME")"
 
 is_secret() {
   local p="$1" f
   # Samples are fine
   case "$p" in *.env.example|*.env.sample|*.env.template|*.tfvars.example|*.tfvars.sample) return 1 ;; esac
-  grep -Eq "$SECRET_PATH_RE" <<<"$p" && return 0
+  grep -Eqi "$SECRET_PATH_RE" <<<"$p" && return 0
   for f in $HOME_SECRET_FILES; do
-    [ "$p" = "$HOME/$f" ] && return 0
+    [ "$p" = "$home_l/$f" ] && return 0
   done
   return 1
 }
 
 case "$tool" in
   Read|Grep)
-    if is_secret "$path"; then
+    if is_secret "$path_l"; then
       block "reading secret files (.env, *.tfvars, keys, CLI credentials) is not allowed: $path"
     fi
     ;;
   Edit|Write|MultiEdit|NotebookEdit)
-    if grep -Eq '\.tfvars$|(^|/)\.git/(config|config\.worktree|hooks/)|(^|/)\.git/modules/[^/]+/(config|config\.worktree|hooks/)|(^|/)\.git/worktrees/[^/]+/config\.worktree$' <<<"$path"; then
+    if grep -Eq '\.tfvars$|(^|/)\.git/(config|config\.worktree|hooks/)|(^|/)\.git/modules/[^/]+/(config|config\.worktree|hooks/)|(^|/)\.git/worktrees/[^/]+/config\.worktree$' <<<"$path_l"; then
       block "editing $path is not allowed (.tfvars, .git/config, .git/hooks)"
     fi
-    if [[ "$path" == "$HOME/.claude/"* ]] \
-       || grep -Eq '(^|/)\.claude/(settings[^/]*|hooks/.*|verify\.sh)$|(^|/)\.githooks/|(^|/)\.github/workflows/' <<<"$path"; then
+    if [[ "$path_l" == "$home_l/.claude/"* ]] \
+       || grep -Eq '(^|/)\.claude/(settings[^/]*|hooks/.*|verify\.sh)$|(^|/)\.githooks/|(^|/)\.github/workflows/' <<<"$path_l"; then
       ask "editing $path (harness or CI file). Confirm the user has OKed this change in chat before approving"
     fi
     ;;

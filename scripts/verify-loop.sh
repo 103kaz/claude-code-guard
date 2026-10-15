@@ -16,7 +16,7 @@ MAX_RETRY="${CLAUDE_PLUGIN_OPTION_VERIFY_MAX_RETRY:-3}"
 case "$MAX_RETRY" in ''|*[!0-9]*) MAX_RETRY=3 ;; esac
 { [ "$MAX_RETRY" -ge 1 ] && [ "$MAX_RETRY" -le 10 ]; } || MAX_RETRY=3
 TIMEOUT_SEC="${CODE_GUARD_VERIFY_TIMEOUT:-600}"   # the override exists for tests
-case "$TIMEOUT_SEC" in ''|*[!0-9]*) TIMEOUT_SEC=600 ;; esac
+case "$TIMEOUT_SEC" in ''|*[!0-9]*|0) TIMEOUT_SEC=600 ;; esac
 mode="${1:-stop}"
 
 input="$(cat)"
@@ -75,7 +75,7 @@ fi
 run_verify() {
   perl -e 'use POSIX; setpgrp(0, 0); my $pid = fork(); if (!$pid) { exec @ARGV or exit 127 }
     $SIG{ALRM} = sub { local $SIG{TERM} = "IGNORE"; kill "TERM", -$$; exit 124 };
-    alarm $ENV{CG_TIMEOUT}; waitpid($pid, 0); exit($? >> 8)' bash "$verify" 2>&1
+    alarm $ENV{CG_TIMEOUT}; waitpid($pid, 0); exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' bash "$verify" 2>&1
 }
 out="$(CG_TIMEOUT="$TIMEOUT_SEC" run_verify)"
 rc=$?
@@ -94,7 +94,11 @@ if [ "$count" -gt "$MAX_RETRY" ]; then
   system_message "code-guard: .claude/verify.sh failed ${MAX_RETRY} times in a row and the turn was ended anyway."
   exit 0
 fi
-echo "$count" >"$count_file"
+if ! { echo "$count" >"$count_file"; } 2>/dev/null; then
+  # Cannot keep the count (unwritable state directory): stop here instead of looping forever
+  system_message "code-guard: .claude/verify.sh failed but the retry count cannot be saved (state directory not writable), so the turn was ended without retries."
+  exit 0
+fi
 
 {
   echo "code-guard verify loop: .claude/verify.sh failed (attempt ${count}/${MAX_RETRY}). Fix the cause before finishing."

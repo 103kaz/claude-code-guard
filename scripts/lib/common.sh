@@ -1,6 +1,9 @@
 #!/bin/bash
 # code-guard: shared helpers for the guard hooks. Source this file; do not run it.
 
+# set -u hooks must not die on an unset HOME (exit 1 is a non-blocking error)
+HOME="${HOME:-/nonexistent-home}"
+
 # need_cmd <command>...: if any command is missing, block everything this hook covers (when unsure, stop).
 need_cmd() {
   local c
@@ -45,11 +48,13 @@ pack_on() {
 # Protected branches: CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES as a JSON array, or comma / space separated. Default main, master.
 _pb="$(printf '%s' "${CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES:-}" | tr -d '[]"' | tr ',' ' ')"
 PROTECTED_LIST=""
+set -f   # no glob expansion of the words below
 for _b in $_pb; do
   # only plain branch-name characters; anything else is ignored
   case "$_b" in *[!A-Za-z0-9._/-]*|'') continue ;; esac
   PROTECTED_LIST="${PROTECTED_LIST:+$PROTECTED_LIST, }$_b"
 done
+set +f
 [ -n "$PROTECTED_LIST" ] || PROTECTED_LIST="main, master"
 PROTECTED_RE="$(printf '%s' "$PROTECTED_LIST" | sed -E 's/, /|/g; s/\./\\./g')"
 unset _pb _b
@@ -61,7 +66,7 @@ is_protected_branch() {
 
 # secret_path_re: file paths the file-tool guard treats as secrets (grep -E, matched against the whole path).
 # shellcheck disable=SC2034
-SECRET_PATH_RE='(^|/)(\.env|\.env\.(local|development|dev|staging|production|prod|test)|\.env\.[A-Za-z0-9_-]+\.local|\.dev\.vars(\.[A-Za-z0-9_-]+)?)$|\.tfvars(\.json)?$|\.tfstate(\.[A-Za-z0-9_-]+)?$|token[^/]*\.txt$|\.(pem|key|p8|p12|mobileprovision)$|(^|/)AuthKey_[^/]*$|firebase-adminsdk[^/]*\.json$|[Ss]ervice-?[Aa]ccount[^/]*\.json$|(^|/)\.ssh/|(^|/)\.aws/|(^|/)\.config/(gcloud|gh)/|(^|/)\.kube/|(^|/)\.docker/config\.json$'
+SECRET_PATH_RE='(^|/)(\.env|\.env\.[A-Za-z0-9._-]+|\.dev\.vars(\.[A-Za-z0-9_-]+)?)$|\.tfvars(\.json)?$|\.tfstate(\.[A-Za-z0-9_-]+)?$|token[^/]*\.txt$|\.(pem|key|p8|p12|mobileprovision)$|(^|/)AuthKey_[^/]*$|firebase-adminsdk[^/]*\.json$|[Ss]ervice-?[Aa]ccount[^/]*\.json$|(^|/)\.ssh/|(^|/)\.aws/|(^|/)\.config/(gcloud|gh)/|(^|/)\.kube/|(^|/)\.docker/config\.json$'
 # Home-level credential files; a project .npmrc (registry settings) is not covered
 # shellcheck disable=SC2034
 HOME_SECRET_FILES=".netrc .npmrc .pypirc"

@@ -59,7 +59,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/verify-loop.sh\"",
-            "timeout": 600
+            "timeout": 660
           }
         ]
       }

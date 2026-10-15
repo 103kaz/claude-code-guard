@@ -27,6 +27,14 @@ mkrepo() { # mkrepo <dir> <branch> <追跡 ref を作るか 1/0>
 mkrepo "$TMPROOT/repo_feat" feat/x 1
 mkrepo "$TMPROOT/repo_main" main 1
 mkrepo "$TMPROOT/repo_new" main 0
+# repo_new has a real, empty remote; repo_busy has a remote that already has a branch but no tracking ref locally (a clone that never fetched)
+git init -q --bare "$TMPROOT/remote_empty.git"
+git -C "$TMPROOT/repo_new" remote add origin "$TMPROOT/remote_empty.git"
+git init -q --bare "$TMPROOT/remote_busy.git"
+mkrepo "$TMPROOT/repo_busy" main 0
+git -C "$TMPROOT/repo_busy" remote add origin "$TMPROOT/remote_busy.git"
+git -C "$TMPROOT/repo_busy" push -q origin main
+git -C "$TMPROOT/repo_busy" update-ref -d refs/remotes/origin/main
 GUARD_CWD="$TMPROOT/repo_feat"
 
 check() {
@@ -607,6 +615,11 @@ check_mcp $ALLOW 'mcp__cf__search_cloudflare_documentation'
 check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DELETE FROM users"}'
 check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"drop table x"}'
 check_mcp $ALLOW 'mcp__cf__d1_database_query' '{"sql":"SELECT * FROM users WHERE deleted = 0"}'
+check_mcp $ASK   'mcp__s__deleteRepository'
+check_mcp $ASK   'mcp__gh__merge_pull_request'
+check_mcp $ASK   'mcp__gh__push_files'
+check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DELETE\nFROM users"}'
+check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DROP\tTABLE x"}'
 
 # Without jq the guards stop everything and say why (they never let calls through blindly)
 for g in guard-bash.sh guard-mcp.sh guard-file.sh; do
@@ -659,6 +672,67 @@ check $BLOCK 'rm -rf ~/.claude/plugins/cache/code-guard'
 check $BLOCK 'echo x > ~/.claude/settings.json'
 check $ALLOW 'ls ~/.claude/plugins'
 
+# --- review findings: bypass shapes and fail-open paths ---
+# push detection: word-shape evasions and git global options with values
+check $BLOCK '\git push origin main'
+check $BLOCK 'g""it push origin main'
+check $BLOCK 'git --git-dir .git push origin main'
+check $BLOCK 'git -C "a b" push origin main'
+check $BLOCK 'git --work-tree=. push origin main'
+# the protected name next to quotes and separators
+check $BLOCK "git push origin 'main'"
+check $BLOCK 'git push origin "main"'
+check $BLOCK 'git push origin main;'
+check $BLOCK 'git push origin HEAD:main&&echo'
+check $BLOCK 'git push --prune origin "refs/heads/*:refs/heads/*"'
+# a << inside quotes is not a heredoc: the lines after it are still checked
+check $BLOCK $'git commit -m "a << b"\ngit push origin main'
+check $BLOCK $'git commit -m "a << b"\ncat .env.local'
+check $ALLOW $'cat <<<"x"\ngit status'
+# a here-string or heredoc body is still not judged
+check $ALLOW $'cat <<\'EOF\'\ngit push origin main\nEOF'
+# message-flag stripping only for git commit / gh; other commands keep their arguments
+check $BLOCK 'cat -b ".env"'
+check $BLOCK 'cat data.key'
+check $BLOCK 'cat ./row.key'
+check $BLOCK 'grep -rn "x" data.key'
+check $ALLOW 'grep -rn data.key src'
+check $ALLOW 'grep -rn "event.key ===" src/'
+# gh api: combined short flags and a graphql query that cannot be read
+check $BLOCK 'gh api repos/o/r/issues -fbody=x'
+check $ASK   'gh api graphql -f query="$Q"'
+check $ASK   'gh api graphql -F query=@m.graphql'
+check $ALLOW 'gh api graphql -f query="{ viewer { login } }"'
+# wrangler global options that take a value
+check $BLOCK 'wrangler --config x.toml deploy'
+check $BLOCK 'wrangler -e prod deploy'
+check $BLOCK 'wrangler -c x.toml secret put KEY'
+# rm -r in a temp directory with ..
+check $ASK   'rm -rf /tmp/../Users/x/proj'
+check $ALLOW 'rm -rf /tmp/build-cache'
+# the first-push exception needs a really empty remote
+GUARD_CWD="$TMPROOT/repo_new"
+check $ASK   'git push -u origin main'
+GUARD_CWD="$TMPROOT/repo_busy"
+check $BLOCK 'git push -u origin main'
+GUARD_CWD="$TMPROOT/repo_feat"
+# reasons are joined, not overwritten by a later one
+n=$((n + 1))
+out="$(cd "$GUARD_CWD" && printf '%s' 'terraform apply tfplan; sudo ls' | jq -Rs '{tool_name:"Bash",tool_input:{command:.}}' | bash "$HOOKS/guard-bash.sh" 2>/dev/null)"
+if ! grep -q 'terraform apply' <<<"$out" || ! grep -q 'sudo' <<<"$out"; then
+  echo "FAIL: ask reasons are not joined: $out"
+  fail=1
+fi
+# input that is not JSON stops (fail closed); unset HOME does not turn into a pass
+for g in guard-bash.sh guard-file.sh guard-mcp.sh; do
+  n=$((n + 1))
+  printf 'not json' | bash "$HOOKS/$g" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 2 ] || { echo "FAIL: $g with non-JSON input returned $rc, want 2"; fail=1; }
+done
+n=$((n + 1))
+out="$(jq -n '{tool_name:"Read",tool_input:{file_path:"/work/.env"}}' | env -u HOME bash "$HOOKS/guard-file.sh" 2>&1)"; rc=$?
+[ "$rc" = 2 ] || { echo "FAIL: guard-file.sh with HOME unset returned $rc, want 2"; fail=1; }
+
 # --- file-tool guard (guard-file.sh) ---
 check_file() {
   local want="$1" tool="$2" path="$3" got out
@@ -699,6 +773,11 @@ check_file $ASK   Edit '/work/.githooks/pre-push'
 check_file $ASK   Edit '/work/.github/workflows/ci.yml'
 check_file $ALLOW Edit '/work/src/main.ts'
 check_file $ALLOW Write '/work/README.md'
+check_file $BLOCK Read '/work/app/.env.qa'
+check_file $BLOCK Read '/work/app/.ENV'
+check_file $BLOCK Read '/work/certs/server.PEM'
+check_file $BLOCK Edit '/work/.GIT/config'
+check_file $ASK   Edit '/work/.Claude/settings.json'
 
 if [ "$fail" = 0 ]; then echo "all $n guard tests passed"; fi
 exit "$fail"
