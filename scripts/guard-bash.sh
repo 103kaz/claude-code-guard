@@ -35,7 +35,7 @@ add_ask() {
   pending_ask="${pending_ask:+$pending_ask / }$1"
 }
 soft_block() {
-  soft_reason="${soft_reason:+$soft_reason / }$1 (approve if this is a false positive)"
+  soft_reason="${soft_reason:+$soft_reason / }[may be a false positive; approve if it is] $1"
 }
 
 if pack_on terraform; then
@@ -67,9 +67,9 @@ fi
 # A commit message that merely mentions ".env.local" is not blocked.
 # Commands containing bash -c / eval / python etc. are not excluded: the string may be executed
 cmd_msg="$cmd"
-# -b / -t are message flags only for gh; for cat and others they are other options (cat -b ".env" is a read)
+# -m / --message / --body / --title values are message text everywhere. -b / -t are message flags only inside a
+# gh pr|issue create|edit|comment|review|close segment (cat -b ".env" and gh pr view 1; cat -b ".env" are reads)
 msg_flags='-m|--message|--body|--title'
-if grep -Eq "${P}gh[[:space:]]+(pr|issue)[[:space:]]" <<<"$cmd"; then msg_flags="$msg_flags|-b|-t"; fi
 if grep -Eq "${P}(git([[:space:]]+-[^[:space:]]+)*[[:space:]]+(commit|tag)|gh[[:space:]]+(pr|issue)[[:space:]]+(create|edit|comment|review|close)|cat|tee)([[:space:]]|$)" <<<"$cmd" \
    && ! grep -Eq "${P}(bash|sh|zsh|dash|eval|python[0-9.]*|node|perl|ruby|php|lua|osascript|swift|xargs|source|env)([[:space:]]|$)|(^|[;&|(])[[:space:]]*\.[[:space:]]" <<<"$cmd"; then
   cmd_msg="$(awk '{ if (skip != "") { t = $0; if (dash) sub(/^\t+/, "", t); if (t == skip) skip = ""; next }
@@ -80,7 +80,8 @@ if grep -Eq "${P}(git([[:space:]]+-[^[:space:]]+)*[[:space:]]+(commit|tag)|gh[[:
            if (match(l, /<<-?[[:space:]]*(@@[DS])?[A-Za-z_][A-Za-z0-9_]*["\047]?/)) {
              s = substr(l, RSTART, RLENGTH); dash = (s ~ /^<<-/)
              gsub(/^<<-?[[:space:]]*(@@[DS])?|["\047]$/, "", s); skip = s } }' <<<"$cmd" \
-    | MSGFLAGS="$msg_flags" perl -0pe 's/(?<=\s)($ENV{MSGFLAGS})([ =])("(?:[^"\\]|\\.)*"|\x27[^\x27]*\x27)/$1$2""/gs' 2>/dev/null)" || cmd_msg="$cmd"
+    | MSGFLAGS="$msg_flags" perl -0pe 's/(?<=\s)($ENV{MSGFLAGS})([ =])("(?:[^"\\]|\\.)*"|\x27[^\x27]*\x27)/$1$2""/gs' \
+    | perl -0pe '1 while s/((?:^|[;&|\n])[ \t]*gh[ \t]+(?:pr|issue)[ \t]+(?:create|edit|comment|review|close)(?:[^;&|"\x27\n]|"(?:[^"\\]|\\.)*"|\x27[^\x27]*\x27)*?[ \t])(-b|-t)([ =])("(?:[^"\\]|\\.)*"|\x27[^\x27]*\x27)/$1-X$2$3""/s' 2>/dev/null)" || cmd_msg="$cmd"
 fi
 # JS/TS properties (e.key, event.key, item.key ...) are not key files. Drop them only when they are the search pattern of
 # grep / rg (the first non-option argument); cat data.key is still a read of a key file
@@ -223,7 +224,11 @@ if grep -Eq "${GIT_PUSH}([[:space:]\"']|$)" <<<"$cmd_msg"; then
   if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]:+\"'](refs/heads/)?(${PROTECTED_RE})([[:space:]\"';&|)]|$)" <<<"$cmd_msg"; then
     push_main=1
   fi
-  push_dir="$(grep -Eo "git[[:space:]]+-C[[:space:]]+[^[:space:];&|]+" <<<"$cmd_msg" | head -n 1 | awk '{print $3}' | tr -d "\"'")"
+  # The directory git will act on: the last -C <dir>, else --work-tree / --git-dir, read from the git words before "push"
+  push_dir="$(perl -ne 'if (/\bgit((?:\s+(?:-C\s+(?:"[^"]*"|\x27[^\x27]*\x27|\S+)|-c\s+\S+|--(?:git-dir|work-tree|namespace|exec-path|super-prefix|config-env)(?:=|\s+)\S+|-\S+))*)\s+push\b/) { my $o = $1; my $d = "";
+      while ($o =~ /-C\s+("[^"]*"|\x27[^\x27]*\x27|\S+)/g) { $d = $1 }
+      if ($d eq "" && $o =~ /--(?:work-tree|git-dir)(?:=|\s+)(\S+)/) { $d = $1 }
+      $d =~ s/^["\x27]|["\x27]$//g; print $d; exit }' <<<"$cmd_msg")"
   cur_branch="$(git -C "${push_dir:-.}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   # Positional arguments after push, minus options and their values (remote, refspec...)
   push_args="$(perl -ne 'if (/\bpush\b([^;&|]*)/) { my @w = split " ", $1; my @p; while (@w) { my $x = shift @w; if ($x =~ /^(-o|--push-option|--repo|--receive-pack|--exec)$/) { shift @w; next } next if $x =~ /^-/; push @p, $x } print join(" ", @p) }' <<<"$cmd_msg")"

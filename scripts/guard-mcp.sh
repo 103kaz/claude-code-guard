@@ -19,15 +19,15 @@ name="${tool##*__}"
 name_w="$(sed -E 's/([a-z0-9])([A-Z])/\1_\2/g' <<<"$name")"
 
 # Does the tool name (words split by _ or -) contain a word for delete / publish / change secrets / write to a branch
-if grep -Eiq '(^|[_-])(delete|destroy|drop|purge|remove|truncate|wipe|deploy|publish|rollback|secret|secrets|merge|push)([_-]|$)' <<<"$name_w"; then
+if grep -Eiq '(^|[_-])(delete|destroy|drop|purge|remove|truncate|wipe|deploy|publish|rollback|secret|secrets)([_-]|$)|(^|_)(merge_pull_request|merge_branch|push_files|push_branch|force_push)$' <<<"$name_w"; then
   ask "MCP tool $tool: deletes, publishes, merges or pushes an external resource, or changes a secret. Confirm the user has OKed this in chat before approving"
 fi
 
 # Tools that run SQL (query, sql, execute) ask when the statement changes data.
-# All string values are joined and whitespace (newline, tab) is flattened, so DELETE\nFROM is seen
+# All string values are joined; /* comments */, newline, tab and NBSP are flattened to spaces, so DELETE/**/FROM is seen
 if grep -Eiq '(^|[_-])(query|sql|execute|exec)([_-]|$)' <<<"$name_w" \
    && jq -r '[.. | strings] | join(" ")' <<<"$(jq -c '.tool_input // {}' <<<"$input")" 2>/dev/null \
-        | tr '\n\t\r' '   ' | grep -Eiq '(^|[^[:alnum:]_])(drop|delete|truncate|alter|update|insert|replace|create)[[:space:]]'; then
+        | perl -0pe 's{/\*.*?\*/}{ }gs; s/\xc2\xa0/ /g' | tr '\n\t\r' '   ' | grep -Eiq '(^|[^[:alnum:]_])(drop|delete|truncate|alter|update|insert|replace|create)[[:space:]]'; then
   ask "MCP tool $tool: SQL that changes the database. Confirm the user has OKed this in chat before approving"
 fi
 

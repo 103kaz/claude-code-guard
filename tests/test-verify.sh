@@ -126,6 +126,30 @@ if true; then
   EXTRA_ENV=""
 fi
 
+# A child that ignores TERM, or a background process, must not hold the turn past the time-out (plus the 2 second KILL grace)
+for body in 'trap "" TERM; sleep 8' '( trap "" TERM; sleep 8 ) & wait'; do
+  set_verify "$body"
+  EXTRA_ENV="CODE_GUARD_VERIFY_TIMEOUT=1"
+  run_hook to1 mark; echo "$RANDOM" >>"$repo/change.txt"
+  start=$SECONDS
+  run_hook to1
+  took=$((SECONDS - start))
+  [ "$RC" = 2 ] && grep -q 'cut off after 1 seconds' <<<"$ERR" || ng "time-out message missing or rc wrong (rc=$RC): $body"
+  [ "$took" -le 6 ] || ng "time-out took ${took}s for: $body"
+done
+# A verify.sh that exits 124 by itself is not reported as a time-out; a leading zero in the setting is not "disabled"
+set_verify 'exit 124'
+EXTRA_ENV=""
+run_hook to2 mark; echo "$RANDOM" >>"$repo/change.txt"
+run_hook to2
+grep -q 'cut off' <<<"$ERR" && ng "an own exit 124 was reported as a time-out"
+set_verify 'sleep 4'
+EXTRA_ENV="CODE_GUARD_VERIFY_TIMEOUT=01"
+run_hook to3 mark; echo "$RANDOM" >>"$repo/change.txt"
+run_hook to3
+grep -q 'cut off after 1 seconds' <<<"$ERR" || ng "CODE_GUARD_VERIFY_TIMEOUT=01 did not time out"
+EXTRA_ENV=""
+
 # A verify.sh killed by a signal is a failure, not a success
 set_verify 'kill -KILL $$'
 run_hook k1 mark; echo k >>"$repo/change.txt"

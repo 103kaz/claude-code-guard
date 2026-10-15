@@ -16,7 +16,9 @@ MAX_RETRY="${CLAUDE_PLUGIN_OPTION_VERIFY_MAX_RETRY:-3}"
 case "$MAX_RETRY" in ''|*[!0-9]*) MAX_RETRY=3 ;; esac
 { [ "$MAX_RETRY" -ge 1 ] && [ "$MAX_RETRY" -le 10 ]; } || MAX_RETRY=3
 TIMEOUT_SEC="${CODE_GUARD_VERIFY_TIMEOUT:-600}"   # the override exists for tests
-case "$TIMEOUT_SEC" in ''|*[!0-9]*|0) TIMEOUT_SEC=600 ;; esac
+case "$TIMEOUT_SEC" in ''|*[!0-9]*) TIMEOUT_SEC=600 ;; esac
+TIMEOUT_SEC=$((10#$TIMEOUT_SEC))
+[ "$TIMEOUT_SEC" -ge 1 ] || TIMEOUT_SEC=600
 mode="${1:-stop}"
 
 input="$(cat)"
@@ -73,9 +75,13 @@ fi
 
 # Run even when the execute bit is missing. Time out (perl alarm; timeout is missing on macOS) so a hung check cannot block the turn forever
 run_verify() {
-  perl -e 'use POSIX; setpgrp(0, 0); my $pid = fork(); if (!$pid) { exec @ARGV or exit 127 }
-    $SIG{ALRM} = sub { local $SIG{TERM} = "IGNORE"; kill "TERM", -$$; exit 124 };
-    alarm $ENV{CG_TIMEOUT}; waitpid($pid, 0); exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' bash "$verify" 2>&1
+  # verify.sh runs in its own process group. On time-out the group gets TERM, then KILL after 2 seconds, so a child that
+  # ignores TERM or a background process cannot keep the output pipe open. A leftover background process is killed on exit too
+  perl -e 'my $pid = fork(); if (!$pid) { setpgrp(0, 0); exec @ARGV or exit 127 }
+    $SIG{ALRM} = sub { kill "TERM", -$pid; select(undef, undef, undef, 2); kill "KILL", -$pid;
+      print "\ncode-guard: verify.sh was cut off after $ENV{CG_TIMEOUT} seconds.\n"; exit 124 };
+    alarm $ENV{CG_TIMEOUT}; waitpid($pid, 0); my $st = $?; alarm 0; kill "KILL", -$pid;
+    exit($st & 127 ? 128 + ($st & 127) : $st >> 8)' bash "$verify" 2>&1
 }
 out="$(CG_TIMEOUT="$TIMEOUT_SEC" run_verify)"
 rc=$?
@@ -96,19 +102,16 @@ if [ "$count" -gt "$MAX_RETRY" ]; then
 fi
 if ! { echo "$count" >"$count_file"; } 2>/dev/null; then
   # Cannot keep the count (unwritable state directory): stop here instead of looping forever
-  system_message "code-guard: .claude/verify.sh failed but the retry count cannot be saved (state directory not writable), so the turn was ended without retries."
+  system_message "code-guard: .claude/verify.sh failed but the retry count cannot be saved (state directory not writable), so the turn was ended without retries. Last output: $(tail -n 20 <<<"$out" | tail -c 1500)"
   exit 0
 fi
 
 {
   echo "code-guard verify loop: .claude/verify.sh failed (attempt ${count}/${MAX_RETRY}). Fix the cause before finishing."
-  if [ "$rc" = 124 ]; then
-    echo "The run was cut off after ${TIMEOUT_SEC} seconds."
-  fi
   if [ "$count" = "$MAX_RETRY" ]; then
     echo "This is the last verification. If you cannot fix it, report the failing check and the remaining problem to the user, then finish."
   fi
-  echo "--- output (last 80 lines) ---"
-  tail -n 80 <<<"$out"
+  echo "--- output (last 80 lines, at most 6000 bytes) ---"
+  tail -n 80 <<<"$out" | tail -c 6000
 } >&2
 exit 2

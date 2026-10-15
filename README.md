@@ -72,6 +72,14 @@ When files changed during a turn and the project has `.claude/verify.sh`, the St
 
 Create the script with `/code-guard:setup-verify`. It looks at your build files and proposes a fast lint + test script, and writes it only after you agree.
 
+## Token cost
+
+The plugin is built to stay out of the context window:
+
+- The guards and the hook that marks the start of a turn print nothing when they pass. Only a block or an ask adds a few lines.
+- The only text always in the session is the one-line description of `/code-guard:setup-verify`. Its instructions load when you run it, and they tell Claude to read build files sparingly.
+- A failing `verify.sh` returns at most the last 80 lines and 6000 bytes, and at most `verify_max_retry` times per turn. Keep `verify.sh` quiet on success and fast (`--quiet` flags help).
+
 ## Settings
 
 Change them in the `/plugin` settings screen. They are read from user and managed settings only; project settings cannot supply them.
