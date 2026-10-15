@@ -6,7 +6,7 @@
 
 ### Known limits
 
-- The guards do not parse the shell. Ambiguous shapes (split command words, line continuations inside command words, odd heredoc markers) ask instead of being judged. The same operation through python and similar interpreters is not stopped.
+- The guards do not parse the shell. Ambiguous shapes (quoted or split command names and subcommands, `git push` arguments built from quotes or expansions, line continuations in a command with a guarded command word, odd heredoc markers or terminators, a failing check) ask instead of being judged. The same operation through python and similar interpreters is not stopped.
 - When a grep or rg is in the command, quoted strings without a slash are not inspected for `*.pem` / `*.key` (`grep -rn foo . ; cat "server.key"` passes).
 - `cat -- -m "<file>"`: a value after `--` that follows a message flag is treated as message text.
 - `gh api -X Delete` written in mixed case is not recognized as a mutating method.

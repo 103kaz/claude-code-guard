@@ -19,6 +19,9 @@ cmd_raw="$cmd"
 cmd="$(perl -pe 's/""//g; s/\x27\x27//g; s/(^|[\s;&|(])\\([A-Za-z])/$1$2/g' <<<"$cmd")"
 # Shapes the regexes cannot read reliably (split command words, odd heredoc markers): ask, do not guess
 ambiguous="$(perl "${BASH_SOURCE[0]%/*}/lib/ambiguous.pl" <<<"$cmd_raw" 2>/dev/null)"
+# A failed check (missing file, syntax error, killed) is not "nothing found": ask instead of passing silently
+ambiguous_rc=$?
+[ "$ambiguous_rc" -ne 0 ] && ambiguous="the ambiguity check could not run (exit $ambiguous_rc); the command shape was not checked"
 
 # Characters that can precede a command name: line start / space / ; & | ( ` / quote / path separator
 P="(^|[[:space:];&|(\`\"'/])"

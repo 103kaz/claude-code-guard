@@ -825,5 +825,42 @@ check_file $BLOCK Read '/work/certs/server.PEM'
 check_file $BLOCK Edit '/work/.GIT/config'
 check_file $ASK   Edit '/work/.Claude/settings.json'
 
+# --- ambiguity detector (lib/ambiguous.pl): shapes the regexes cannot read are asked ---
+check $ASK   '"git" push origin main'
+check $ASK   "'git' push origin main"
+check $ASK   'g"i"t push origin main'
+check $ASK   'gi\t push origin main'
+check $ASK   '"terraform" destroy'
+check $ASK   '/usr/bin/git "push" origin main'
+check $ASK   '/usr/bin/git push origin ma"in"'
+check $ASK   'x=`git push origin ma"in"`'
+check $ASK   'git push origin $B'
+check $ASK   'git push origin ma$(echo in)'
+check $ASK   'git push origin `echo main`'
+check $ASK   $'git push \\\norigin main'
+check $ASK   $'git push origin \\\nmain'
+check $ASK   $'((a=1<<b))\ngit status'
+check $ASK   $'(( a << b ))\ngit status'
+check $ASK   $'echo $[1<<b]\ngit status'
+check $ASK   $'a[1<<b]=1\ngit status'
+check $ASK   $'cat <<\'END-1\'\nit\'s\nEND-1\ngit status'
+check $ASK   $'cat <<"a b"\nx\na b\ngit status'
+check $ASK   $'cat <<EOF\nx\n'
+check $ASK   'cat << $x'
+# plain data that merely mentions the shapes is not asked
+check $ALLOW 'git commit -m "docs: use git '"'"'push'"'"' here"'
+check $ALLOW $'cat > notes.txt <<\'EOF\'\ngit "push" and $((1<<2))\nEOF'
+check $ALLOW 'bash -c "git status"'
+check $ALLOW 'git status'
+
+# A failing detector is asked, not passed silently
+tmp_hooks="$(mktemp -d "${TMPDIR:-/tmp}/code-guard-test.XXXXXX")"
+cp -R "$HOOKS/." "$tmp_hooks/"
+printf 'die "broken";\n' > "$tmp_hooks/lib/ambiguous.pl"
+n=$((n + 1))
+out="$(cd "$GUARD_CWD" && printf '%s' 'git status' | jq -Rs '{tool_name:"Bash",tool_input:{command:.}}' | bash "$tmp_hooks/guard-bash.sh" 2>/dev/null)"
+if ! grep -q '"permissionDecision": "ask"' <<<"$out"; then echo "FAIL (want ask when ambiguous.pl fails)"; fail=1; fi
+rm -rf "$tmp_hooks"
+
 if [ "$fail" = 0 ]; then echo "all $n guard tests passed"; fi
 exit "$fail"

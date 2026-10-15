@@ -7,7 +7,7 @@ A Claude Code plugin that stops dangerous operations with hooks, and runs your p
 ## What it does not guarantee
 
 - The guards read command strings and file paths. They are not a sandbox. The same operation routed through python or another interpreter is not stopped.
-- The guards do not parse the shell. Command words split by quotes or backslashes (`git "push"`), line continuations inside the command words, and heredoc markers inside quotes, comments or arithmetic are sent to a confirmation (ask) instead of being judged.
+- The guards do not parse the shell. These shapes are sent to a confirmation (ask) instead of being judged: a quoted or split command name or subcommand (`"git" push`, `git "push"`), a `git push` argument built from quotes or expansions (`ma"in"`, `$B`), a line continuation inside a command with a guarded command word, and heredoc markers inside quotes, comments or arithmetic, or with a terminator word the guard cannot read (`END-1`). If this check itself fails, the command is asked too. Mentions of these shapes inside a commit message or a plain heredoc body are not asked.
 - Grep is stopped only when its `path` is a secret file. A directory search whose results include secret files cannot be stopped.
 - The verify loop makes Claude fix failures. It is not enforcement: a turn can still end without running `verify.sh`.
 - The hook input format and the plugin mechanism can change between Claude Code versions. See [Tested versions](#tested-versions).
