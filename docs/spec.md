@@ -2,8 +2,6 @@
 
 Claude Code のプラグイン `code-guard` の仕様。Claude Code が実行しようとする危ない操作をフックで止め、ファイルを変えたまま応答を終えようとしたらプロジェクトの検証を走らせる。
 
-元になるのは個人用の非公開の構成のガードと検証ループで、個人の運用ルール (PR の書き方、レビューの進め方など) を外して汎用にしたもの。
-
 ## 決まっていること
 
 | 項目 | 決定 |
@@ -207,26 +205,12 @@ README の先頭近くに書く。
 
 ## 対象外 (v1)
 
-- 個人の運用ルール (PR の書き方、コミットメッセージ、文章の方針)
+- 運用ルール (PR の書き方、コミットメッセージ、文章の方針)
 - レビューのスキル (`adversarial-review`、`doc-code-consistency`) と `/review-loop`、`/retro`、`/address-comments`
 - pre-push の gitleaks
 - サンドボックスの設定 (README の例だけ)
 - Windows
 - プロジェクトごとの設定の上書き
-
-## 元の個人用の構成からの対応
-
-| 今のもの | code-guard での扱い |
-|---|---|
-| `user/hooks/guard-bash.sh` | `scripts/guard-bash.sh`。中核とパックに分け、守るブランチを設定から読む |
-| `user/hooks/guard-mcp.sh` | `scripts/guard-mcp.sh` |
-| `user/settings.json` の deny / ask | `scripts/guard-file.sh` に移す |
-| `user/hooks/fmt-terraform.sh` | terraform パックに入れる |
-| `user/hooks/test-guard.sh` | `tests/test-guard.sh` |
-| `project/.claude/hooks/verify-on-stop.sh` | `scripts/verify-loop.sh` |
-| `project/.claude/verify.sh` の雛形 | `/code-guard:setup-verify` |
-| `init.sh`、`doctor.sh`、`check-sync.sh` | 使わない (プラグインの導入に置き換わる) |
-| `user/hooks/remind-adversarial-review.sh`、`user/CLAUDE.md`、スキル、コマンド | 入れない |
 
 ## 決めていないこと
 
@@ -236,7 +220,6 @@ README の先頭近くに書く。
 - `pluginConfigs` はプロジェクトの settings から読まれない (「設定」)。
 - block は exit 2 で返す (「判定の種類」)。
 - メッセージの文面は下の「メッセージの案」。block の 2 行目は候補 1 にした。
-- 今の個人用の構成から乗り換える手順 (`~/.claude` のフックの登録を外す) は元の個人用の構成の側に書く。その構成は非公開で使うのは作者だけなので、code-guard の README には書かない。
 
 まだ決めていないもの:
 
@@ -245,7 +228,7 @@ README の先頭近くに書く。
 - マーケットプレイスの名前は `claude plugin validate --strict` を通した。公開時の登録で弾かれるかは未確認。
 - フックの `onFailure: "block"` は 2.1.295 以降の機能で、開発に使った 2.1.293 では実機で確かめていない。古い版ではこのキーが無視され、終了コードの動作になる。
 - Read への deny と、フックの exit 2 で、画面の表示や Claude に届く文面がどう違うか。どちらで止めるかは exit 2 に決めてあり、違いは未確認。
-- リポジトリの settings の `enabledPlugins` でこのプラグインが無効にされている場合の扱い。無効だとこのプラグインのフックは一つも動かないので、プラグイン自身では知らせられない。「保証しないこと」に書くほかに手を打つか (たとえば個人用の構成の側で検知するか) を決める。
+- リポジトリの settings の `enabledPlugins` でこのプラグインが無効にされている場合の扱い。無効だとこのプラグインのフックは一つも動かないので、プラグイン自身では知らせられない。「保証しないこと」に書くほかに手を打つか  を決める。
 
 ### メッセージの案
 
@@ -286,4 +269,4 @@ block の 2 行目の書き方の候補 (1 に決めた):
 
 1. 上の案。ガードの故障ではないことと、別の手段で試さないことを書く。
 2. 短くする: `Do not work around this. Tell the user why, and give them the command to run themselves.`
-3. 今の個人用の文面を訳しただけのもの: `A human must do this. If needed, tell the user why and the command to run. Do not look for a workaround.`
+3. 短い命令形だけにしたもの: `A human must do this. If needed, tell the user why and the command to run. Do not look for a workaround.`
