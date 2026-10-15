@@ -853,6 +853,23 @@ check $ALLOW $'cat > notes.txt <<\'EOF\'\ngit "push" and $((1<<2))\nEOF'
 check $ALLOW 'bash -c "git status"'
 check $ALLOW 'git status'
 
+# nested quotes and ANSI-C quotes inside bash -c / eval, a long input, and words in argument position
+check $ASK   'bash -c "git "push" origin main"'
+check $ASK   "sh -c 'git '\"push\"' origin main'"
+check $ASK   'eval "git "push" origin main"'
+check $ASK   'bash -c "git pu"sh" origin main"'
+check $ASK   'bash -c "git \"push\" origin main"'
+check $ASK   $'bash -c "git \\\npush origin main"'
+check $ASK   "\$'git' push origin main"
+check $ASK   "\$\"git\" push origin main"
+check $ASK   "$(printf 'x%.0s' $(seq 1 100100))"
+check $ALLOW 'grep "git" README.md'
+check $ALLOW 'echo "git"'
+check $ALLOW 'rg "terraform" .'
+check $ALLOW 'ls "$HOME/git"'
+check $ALLOW 'X="a git b"; echo $X'
+check $BLOCK 'bash -c "git push origin main"'
+
 # A failing detector is asked, not passed silently
 tmp_hooks="$(mktemp -d "${TMPDIR:-/tmp}/code-guard-test.XXXXXX")"
 cp -R "$HOOKS/." "$tmp_hooks/"

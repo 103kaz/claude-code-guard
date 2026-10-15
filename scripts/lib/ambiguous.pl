@@ -12,6 +12,9 @@ $c = "" unless defined $c;
 
 sub say_reason { print "$_[0]\n"; exit 0 }
 
+# The regexes below are bounded, but a huge command still costs time and a hook timeout lets the command through
+say_reason('the command is longer than 100000 characters; the guards do not read it reliably') if length($c) > 100000;
+
 # Scan 1: heredocs. The guards drop heredoc bodies from inspection, so a wrong guess about where a body is would hide
 # the lines after it. Bodies that are plain data are recorded in @drop so the word checks below skip them.
 my @drop;                    # [start, end) of heredoc bodies that are plain data
@@ -21,7 +24,7 @@ my $has_interp = ($c =~ /(?:^|[\s;&|(`\/])(?:bash|sh|zsh|dash|eval|python[0-9.]*
   my @st = ('c');            # c: command, d: inside "...", s: inside '...'
   my $n = length $c;
   # arithmetic contexts where << is a shift: $((..)), $[..], ((..)), a[1<<b], let
-  my $arith_at = ($c =~ /\$\(\(|\$\[|(?:^|[\s;&|(])\(\(|\w\[[^\]\n]*<<[^\]\n]*\]|(?:^|[\s;&|(])let\s+\S*<</) ? $-[0] : -1;
+  my $arith_at = ($c =~ /\$\(\(|\$\[|(?:^|[\s;&|(])\(\(|\w\[[^\]\n]{0,200}<<[^\]\n]{0,200}\]|(?:^|[\s;&|(])let\s+\S*<</) ? $-[0] : -1;
   for (my $i = 0; $i < $n; $i++) {
     my $ch = substr($c, $i, 1);
     my $top = $st[-1];
@@ -119,31 +122,55 @@ if ($s =~ /(?:^|[\s;&|(])(?:git\s+(?:-\S+\s+)*(?:commit|tag)|gh\s+(?:pr|issue)\s
 my $cw  = qr/(?:git|gh|wrangler|terraform)/;
 my $ctl = qr/(?:^|[\s;&|(`])(?:[^\s;&|()`]*\/)?${cw}/;
 my $opt = qr/(?>(?:\s+(?:-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+)|-\S+))*)/;
+# words that run the next word as a command: skipped when looking for the command name
+my $wrap = qr/^(?:sudo|env|command|exec|time|nohup|nice|xargs|timeout|builtin)$/;
 
-# 1. The command name itself is split or quoted: "git" push, g"i"t push, gi\t push, /usr/bin/"git" push
-for my $w (split /[\s;&|()`]+/, $s) {
-  next unless $w =~ /["'\\]/;
-  next if $w =~ /^["'][^"']*$/ || $w =~ /^[^"']*["']$/;    # a quote at one end only: bash -c "git push ..."
-  (my $u = $w) =~ s/^\\(?=[A-Za-z])//;                       # \git is undone by the guards
-  $u =~ s/["'\\]//g;
-  if ($u =~ m{^(?:.*/)?${cw}\z}) {
-    say_reason('the command name is quoted or split (g"i"t, "git", gi\t); the guards cannot read it reliably');
+# a quote at one end only (`b"` from X="a git b", `"git` from bash -c "git ...") is not a split word
+sub one_end { $_[0] =~ /^["'][^"'\\]*$/ || $_[0] =~ /^[^"'\\]*["']$/ }
+
+sub word_rules {
+  my ($t) = @_;
+
+  # 1. The command name itself is quoted or split: "git" push, g"i"t push, gi\t push, $'git' push, /usr/bin/"git" push.
+  # Only the word in command position counts, so grep "git" and echo "git" are not asked.
+  for my $seg (split /[;&|\n(`]+/, $t) {
+    my @w = split ' ', $seg;
+    while (@w && ($w[0] =~ /^\w+=/ || $w[0] =~ /^-/ || $w[0] =~ /^\d+$/ || $w[0] =~ $wrap || one_end($w[0]))) { shift @w }
+    next unless @w;
+    my $w = $w[0];
+    next unless $w =~ /["'\\]/;
+    (my $u = $w) =~ s/^\\(?=[A-Za-z])//;                    # \git is undone by the guards
+    $u =~ s/\$(?=["'])//g;                                    # $'git' and $"git" are ANSI-C / locale quotes
+    $u =~ s/["'\\]//g;
+    if ($u =~ m{^(?:.*/)?${cw}\z}) {
+      say_reason('the command name is quoted or split (g"i"t, "git", gi\t, $\'git\'); the guards cannot read it reliably');
+    }
+  }
+
+  # 2. The subcommand word has a quote or backslash inside: git "push", git pu\sh
+  while ($t =~ /$ctl$opt\s+(\S{0,500}["'\\]\S{0,500})/g) {
+    (my $cand = $1) =~ s/[;&|)]+$//;
+    next if $cand !~ /["'\\]/ || one_end($cand);
+    say_reason('a command word is split by quotes or a backslash (git "push", git pu\sh); the guards cannot read it reliably');
+  }
+
+  # 3. A push argument built from quotes, backslashes or expansions: ma"in, ma\in, ma${x}in, $B, ma$(echo in), `echo main`
+  if ($t =~ /(?:^|[\s;&|(`])(?:\S*\/)?git$opt\s+push\b[^|;&\n]{0,2000}(?:[\w.\/=-](?:["'\\]|\$\{?)\w|\$[\w{(]|`)/) {
+    say_reason('a git push argument is built from quotes, backslashes or expansions (ma"in, $B, ${x}); the target cannot be read reliably');
+  }
+
+  # 4. Line continuation inside a command that has a guarded command word, or inside a word: git push \<newline> main, .e\<newline>nv
+  if ($t =~ /$ctl[^\n;&|]{0,2000}\\\n/ || $t =~ /\w\\\n\w/) {
+    say_reason('a line continuation splits the command words; the guards cannot read it reliably');
   }
 }
 
-# 2. The subcommand word has a quote or backslash inside: git "push", git pu\sh
-if ($s =~ /$ctl$opt\s+\S*["'\\]\S*/) {
-  say_reason('a command word is split by quotes or a backslash (git "push", git pu\sh); the guards cannot read it reliably');
-}
+word_rules($s);
 
-# 3. A push argument built from quotes, backslashes or expansions: ma"in, ma\in, ma${x}in, $B, ma$(echo in), `echo main`
-if ($s =~ /(?:^|[\s;&|(`])(?:\S*\/)?git$opt\s+push\b[^|;&\n]*(?:[\w.\/=-](?:["'\\]|\$\{?)\w|\$[\w{(]|`)/) {
-  say_reason('a git push argument is built from quotes, backslashes or expansions (ma"in, $B, ${x}); the target cannot be read reliably');
-}
-
-# 4. Line continuation inside a command that has a guarded command word, or inside a word: git push \<newline> main, .e\<newline>nv
-if ($s =~ /$ctl[^\n;&|]*\\\n/ || $s =~ /\w\\\n\w/) {
-  say_reason('a line continuation splits the command words; the guards cannot read it reliably');
+# The text inside bash -c "..." / eval "..." is a command too. Quotes nested in it ("git "push" ...", \"push\") are
+# read by the shell as part of the words, so check the payload on its own. The earliest one covers the later ones.
+if ($s =~ /(?:^|[\s;&|(`])(?:(?:bash|sh|zsh|dash)\b[^;&|\n"']{0,200}?\s-[A-Za-z]*c\s+|(?:eval|exec)\s+)["']/) {
+  word_rules(substr($s, $+[0]));
 }
 
 exit 0;
