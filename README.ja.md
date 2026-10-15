@@ -103,10 +103,15 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
   "sandbox": {
     "enabled": true,
     "allowUnsandboxedCommands": false,
+    "excludedCommands": ["gh pr *", "gh issue *", "gh api *", "gh run *", "gh auth status"],
     "network": { "allowedDomains": ["github.com"] }
   }
 }
 ```
+
+空のリモートへの初回 push かどうかは `git ls-remote` で判定します。これは外向きの通信を使うので、リモートのホストが `allowedDomains` に無いと失敗し、ガードは block に倒れます。`excludedCommands` は、使う `gh` のサブコマンドに合わせて変えます。
+
+Claude Code 2.1.293 と上の設定で確かめました。2 つのテストスクリプトは通り、github.com への `git ls-remote` は成功し、プロジェクト外への書き込みは Operation not permitted で失敗し、他のホストは 403 で拒否されます。
 
 ## 動作を確かめた版
 

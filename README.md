@@ -103,10 +103,15 @@ The sandbox limits writes and network at the OS level; code-guard stops operatio
   "sandbox": {
     "enabled": true,
     "allowUnsandboxedCommands": false,
+    "excludedCommands": ["gh pr *", "gh issue *", "gh api *", "gh run *", "gh auth status"],
     "network": { "allowedDomains": ["github.com"] }
   }
 }
 ```
+
+The guard decides whether a first push to an empty remote is allowed with `git ls-remote`, which makes an outbound request. If the remote's host is not in `allowedDomains`, the request fails and the guard falls back to block. Adjust `excludedCommands` to the `gh` subcommands you use.
+
+Checked with Claude Code 2.1.293 and the settings above: both test scripts pass, `git ls-remote` against github.com succeeds, writes outside the project fail with "Operation not permitted", and other hosts get 403.
 
 ## Tested versions
 
