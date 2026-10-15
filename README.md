@@ -1,0 +1,117 @@
+# code-guard
+
+[日本語](README.ja.md)
+
+A Claude Code plugin that stops dangerous operations with hooks, and runs your project's own checks before Claude finishes a turn.
+
+## What it does not guarantee
+
+- The guards read command strings and file paths. They are not a sandbox. The same operation routed through python or another interpreter is not stopped.
+- Grep is stopped only when its `path` is a secret file. A directory search whose results include secret files cannot be stopped.
+- The verify loop makes Claude fix failures. It is not enforcement: a turn can still end without running `verify.sh`.
+- The hook input format and the plugin mechanism can change between Claude Code versions. See [Tested versions](#tested-versions).
+- A repository can switch the plugin off: `enabledPlugins` in the project's `.claude/settings.json` overrides the user's settings. Claude's own edits to those files are stopped (asked or blocked), but a setting that arrived with a cloned repository is not.
+
+## Install
+
+```bash
+/plugin marketplace add 103kaz/claude-code-guard
+/plugin install code-guard@claude-code-guard
+```
+
+Requires bash 3.2+, `jq` and `perl`, on macOS or Linux. Windows is not supported. If `jq` or `perl` is missing, the guards block everything they cover and say how to install the tool.
+
+## What is guarded
+
+Each decision is one of: **block** (exit 2, cannot be approved), **ask** (a confirmation to the user), or pass.
+
+### Core rules (cannot be turned off)
+
+| Area | Block | Ask |
+|---|---|---|
+| Protected branches | push to a protected branch (a bare `git push` on one included) | first push to an empty remote |
+| Push shape | `--no-verify`, `--mirror`, `--delete` / `-d` / `:ref`, `--all` | force push (`+ref` included), every work-branch push when `confirm_push` is on |
+| Hook bypass | `core.hooksPath`, `git -c`, `--config-env`, `GIT_CONFIG_*`, alias / include settings | |
+| Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, keychain values | |
+| Harness | Bash writes to `~/.claude` settings / hooks / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks` | Bash writes to `.claude/hooks`, `.claude/verify.sh`, `.github/workflows` |
+| Fetched code | `curl` / `wget` piped to a shell | process substitution, `bash -c "$(curl ...)"`, `eval` |
+| Deleting | `rm -r` on `/` or `~` | `rm -r` outside build directories, `git clean`, `reset --hard`, `restore`, `checkout --`, `stash drop`, `branch -D` |
+| Machine settings | | `sudo`, `launchctl` registration, `crontab`, `defaults write` |
+
+Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar.
+
+### File tools (`guard-file.sh`)
+
+Plugins cannot ship permission rules, so these live in a hook.
+
+| Tool | Block | Ask |
+|---|---|---|
+| Read, Grep | secret files (same patterns as the core secret rules) | |
+| Edit, Write, MultiEdit, NotebookEdit | `*.tfvars`, `.git/config`, `.git/hooks` | `~/.claude`, `.claude/settings*`, `.claude/hooks`, `.claude/verify.sh`, `.githooks`, `.github/workflows` |
+
+### MCP tools (`guard-mcp.sh`)
+
+A tool whose name contains `delete`, `destroy`, `drop`, `purge`, `remove`, `truncate`, `wipe`, `deploy`, `publish`, `rollback` or `secret` asks. Tools named `query`, `sql`, `execute` ask when the input is a data-changing statement.
+
+### Packs
+
+On by default. Turn one off when its policy does not fit how you work. Secret reads stay in the core even when a pack is off.
+
+| Pack | Decisions |
+|---|---|
+| `github` | block: `gh secret set/delete`, `gh variable delete`, `gh repo delete`, `gh release delete`, `gh pr merge --admin/--auto`, mutating `gh api` (a lone call to a repository-settings path asks). ask: `gh pr merge`, `gh workflow run` |
+| `terraform` | block: `destroy`, `import`, `taint`, `untaint`, `force-unlock`, state changes, plan + apply in one command, `-auto-approve` and similar. ask: `apply` of a saved plan file. `terraform fmt` runs after Edit / Write of `.tf` files |
+| `gcp` | block: deleting disks, instances, projects, storage, SQL instances, `gsutil rm/rb`, Secret Manager values and access tokens |
+| `cloudflare` | block: `wrangler` deploy / delete / rollback / secret changes |
+
+## Verify loop
+
+When files changed during a turn and the project has `.claude/verify.sh`, the Stop hook runs it. On failure the last 80 lines of output go back to Claude (exit 2). After `verify_max_retry` failures in one turn (default 3) the user is told and the stop passes. With no `.claude/verify.sh` nothing happens.
+
+"Changed" compares a fingerprint of HEAD, the tracked diff and the untracked files against the one taken when the prompt was submitted, so changes that were already there do not trigger it.
+
+Create the script with `/code-guard:setup-verify`. It looks at your build files and proposes a fast lint + test script, and writes it only after you agree.
+
+## Settings
+
+Change them in the `/plugin` settings screen. They are read from user and managed settings only; project settings cannot supply them.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `protected_branches` | `main`, `master` | branches push is blocked for |
+| `confirm_push` | `true` | ask before pushing a work branch |
+| `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | enable the pack |
+| `verify_max_retry` | `3` | verify loop retries per turn (1-10) |
+
+Per-project overrides are not supported.
+
+## Using it with the sandbox
+
+The sandbox limits writes and network at the OS level; code-guard stops operations by meaning (push to main, `terraform destroy`). They complement each other. Plugins cannot configure the sandbox, so add it to your own settings, for example:
+
+```json
+{
+  "sandbox": {
+    "enabled": true,
+    "allowUnsandboxedCommands": false,
+    "network": { "allowedDomains": ["github.com"] }
+  }
+}
+```
+
+## Tested versions
+
+Developed against Claude Code 2.1.293. The hooks set `onFailure: "block"`, which Claude Code 2.1.295 and later support; it has not been verified on a real session yet. Older versions ignore the key and fall back to the exit-code behaviour.
+
+## Development
+
+```bash
+bash tests/test-guard.sh    # guards, packs, settings (about a minute)
+bash tests/test-verify.sh   # verify loop
+```
+
+When you change a guard decision, add cases to `tests/test-guard.sh` first.
+
+## License
+
+MIT

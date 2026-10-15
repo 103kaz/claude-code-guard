@@ -1,0 +1,55 @@
+{
+  "name": "code-guard",
+  "version": "0.1.0",
+  "description": "Hooks that stop dangerous operations (push to protected branches, secret reads, destructive commands) and run your project's verification before Claude finishes.",
+  "author": { "name": "103kaz" },
+  "license": "MIT",
+  "repository": "https://github.com/103kaz/claude-code-guard",
+  "userConfig": {
+    "protected_branches": {
+      "type": "string",
+      "multiple": true,
+      "title": "Protected branches",
+      "description": "Branches that git push is blocked for",
+      "default": ["main", "master"]
+    },
+    "confirm_push": {
+      "type": "boolean",
+      "title": "Confirm pushes",
+      "description": "Ask for confirmation before pushing a work branch",
+      "default": true
+    },
+    "pack_github": {
+      "type": "boolean",
+      "title": "GitHub pack",
+      "description": "Guard gh secret / repo delete / pr merge / api mutations",
+      "default": true
+    },
+    "pack_terraform": {
+      "type": "boolean",
+      "title": "Terraform pack",
+      "description": "Guard terraform destroy / apply / state and format edited files",
+      "default": true
+    },
+    "pack_gcp": {
+      "type": "boolean",
+      "title": "GCP pack",
+      "description": "Guard gcloud / gsutil deletes and secret value reads",
+      "default": true
+    },
+    "pack_cloudflare": {
+      "type": "boolean",
+      "title": "Cloudflare pack",
+      "description": "Guard wrangler deploy / delete / secret changes",
+      "default": true
+    },
+    "verify_max_retry": {
+      "type": "number",
+      "title": "Verify retries",
+      "description": "How many times the verify loop sends a failure back to Claude in one turn (1-10)",
+      "default": 3,
+      "min": 1,
+      "max": 10
+    }
+  }
+}
