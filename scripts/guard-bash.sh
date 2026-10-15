@@ -14,8 +14,11 @@ need_cmd jq perl
 input="$(cat)"
 cmd="$(jq -er '.tool_input.command // ""' <<<"$input")" \
   || block "could not read the hook input (not valid JSON); blocking everything this hook covers"
+cmd_raw="$cmd"
 # Undo word-shape evasions before matching: \git -> git, g""it -> git
 cmd="$(perl -pe 's/""//g; s/\x27\x27//g; s/(^|[\s;&|(])\\([A-Za-z])/$1$2/g' <<<"$cmd")"
+# Shapes the regexes cannot read reliably (split command words, odd heredoc markers): ask, do not guess
+ambiguous="$(perl "${BASH_SOURCE[0]%/*}/lib/ambiguous.pl" <<<"$cmd_raw" 2>/dev/null)"
 
 # Characters that can precede a command name: line start / space / ; & | ( ` / quote / path separator
 P="(^|[[:space:];&|(\`\"'/])"
@@ -398,6 +401,7 @@ elif grep -Eq "${P}launchctl[[:space:]]+(bootstrap|load|enable)([[:space:]]|$)" 
   add_ask "launchctl registration / crontab / defaults write: leaves machine settings behind. Confirm the user has OKed this in chat before approving"
 fi
 
+[ -n "$ambiguous" ] && soft_block "$ambiguous"
 [ -n "$soft_reason" ] && add_ask "$soft_reason"
 [ -n "$pending_ask" ] && ask "$pending_ask"
 exit 0

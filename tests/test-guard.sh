@@ -737,6 +737,28 @@ n=$((n + 1))
 out="$(jq -n '{tool_name:"Read",tool_input:{file_path:"/work/.env"}}' | env -u HOME bash "$HOOKS/guard-file.sh" 2>&1)"; rc=$?
 [ "$rc" = 2 ] || { echo "FAIL: guard-file.sh with HOME unset returned $rc, want 2"; fail=1; }
 
+# shapes the regexes cannot read reliably: ask instead of guessing (not a sandbox, so no full shell parsing)
+check $ASK   'git "push" origin main'
+check $ASK   "git 'push' origin main"
+check $ASK   $'git \\\npush origin main'
+check $ASK   'git pu\sh origin feat/x'
+check $ASK   'git push origin feat --no-"verify"'
+check $ASK   'git push origin "ma"in'
+check $ASK   'git push origin ma\in'
+check $ASK   'git push origin ma${x}in'
+check $ASK   $'cat .e\\\nnv'
+check $ASK   $'git commit -m "msg\ntext <<EOF here"\ncat .env'
+check $ASK   $'echo $((a<<b))\ncat /dev/null\ncat .env'
+check $ASK   $'echo x # <<EOF\ncat .env'
+check $ASK   "echo 'use <<EOF to start'"
+# ordinary shapes are not asked
+check $ALLOW 'git -C "my dir" status'
+check $ALLOW $'git commit -m "$(cat <<\'EOF\'\nfix: it\'s a message\nEOF\n)"'
+check $ALLOW $'cat <<\'EOF\' > notes.md\nit\'s "quoted"\nEOF\ngit status'
+check $ALLOW 'echo "git push origin feat/x"'
+check $ALLOW 'git log --format="%h %s" -n 3'
+check $ALLOW $'docker run \\\n  --rm alpine echo hi'
+
 # -b / -t are message flags only inside the gh pr|issue segment
 check $BLOCK 'gh pr view 1; cat -b ".env"'
 check $BLOCK 'gh pr list && cat -t ".env"'
