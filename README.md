@@ -33,13 +33,13 @@ Each decision is one of: **block** (exit 2, cannot be approved), **ask** (a conf
 | Protected branches | push to a protected branch (a bare `git push` on one, `heads/main`, and a repository reached through `cd` or `GIT_DIR=` included), a lone `:` or a wildcard refspec | first push to an empty remote |
 | Push shape | `--no-verify`, `--mirror`, `--delete` / `-d` / `:ref`, `--prune`, `--all` | force push (`+ref` included), every work-branch push when `confirm_push` is on |
 | Hook bypass | `core.hooksPath`, `git -c`, `--config-env`, `GIT_CONFIG_*`, alias / include settings, removing the core / alias / include section, git with `HOME=` / `XDG_CONFIG_HOME=`, writes to `~/.gitconfig` / `~/.config/git/config`, `--no-verify` on commit / merge (`commit -n`) | |
-| Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, keychain values | |
+| Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, git credentials (`~/.git-credentials`, `git credential fill`), keychain values. Names after `<`, `rev:` and `--opt=`, and globs or braces that expand to one (`.en?`, `.e{n,x}v`) are included | |
 | Harness | Bash writes to `~/.claude` settings / hooks / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks` | Bash writes to `.claude/hooks`, `.claude/verify.sh`, `.github/workflows` |
 | Fetched code | `curl` / `wget` piped to a shell | process substitution, `bash -c "$(curl ...)"`, `eval` |
 | Deleting | `rm -r` on `/` or `~` | `rm -r` outside build directories, `git clean`, `reset --hard`, `restore`, `checkout --`, `stash drop`, `branch -D` |
 | Machine settings | | `sudo`, `launchctl` registration, `crontab`, `defaults write` |
 
-Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar.
+Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar. A `$(...)` or backtick inside a double-quoted value or an unquoted heredoc runs, so it is judged.
 
 ### File tools (`guard-file.sh`)
 

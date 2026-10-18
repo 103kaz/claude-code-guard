@@ -87,13 +87,13 @@ jq が無いとフックの入力を読めない。そのときは、そのフ�
 | 守るブランチ | 守るブランチへの push (初回を除く)。守るブランチにいて引数なしの `git push`、`heads/main` (`refs/` を省いた形)、`cd` / `pushd` や `GIT_DIR=` で移った先のリポジトリでの push も含む。`:` だけ (一致するブランチをすべて push) とワイルドカードの refspec | 空のリモートへの初回 push |
 | push の形 | `--no-verify`、`--mirror`、`--delete` (`-d` と `:` で始まる refspec を含む)、`--prune`、`--all` | force push (`+` で始まる refspec を含む) |
 | フックの回避 | `core.hooksPath` の変更、`git -c` と `--config-env`、`GIT_CONFIG_*`、alias と include の設定、core / alias / include のセクションの削除と名前の変更 (`--remove-section` と新しい書式の `remove-section`)、`HOME=` / `XDG_CONFIG_HOME=` を変えて git を動かすこと、`~/.gitconfig` と `~/.config/git/config` の書き換え、commit / merge / rebase などの `--no-verify` と `commit -n` | |
-| 機密値 | `.env` と `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産 (`*.p8`、`*.p12`、`*.mobileprovision`、`AuthKey_*`)、サービスアカウント鍵、CLI の認証情報 (`~/.aws`、`~/.config/gcloud`、gh のトークン、`~/.kube`、`~/.docker`、`~/.netrc` など)、キーチェーンの値 | |
+| 機密値 | `.env` と `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産 (`*.p8`、`*.p12`、`*.mobileprovision`、`AuthKey_*`)、サービスアカウント鍵、CLI の認証情報 (`~/.aws`、`~/.config/gcloud`、gh のトークン、`~/.kube`、`~/.docker`、`~/.netrc` など)、git の資格情報 (`~/.git-credentials`、`~/.config/git/credentials`、`git credential fill` / `get`)、キーチェーンの値。名前の直前がリダイレクト (`<`)、`rev:`、`--opt=` の形と、展開するとこれらの名前になるグロブやブレース展開 (`.en?`、`.e{n,x}v`、`--include=*.tfvars`) も含む。`*`、`*.*`、`.*` だけの語は判定しない | |
 | ハーネス | `~/.claude` の settings とフック、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks`、プラグインの置き場所 (`~/.claude/plugins`) の Bash での書き換え | プロジェクトの `.claude/hooks` と `.claude/verify.sh` の Bash での書き換え |
 | 取得したコードの実行 | `curl` / `wget` の出力を sh に渡すパイプ | プロセス置換、`bash -c "$(curl ...)"`、`eval "$(curl ...)"` |
 | 消す操作 | ルートやホームを対象にした `rm -r` | ビルドの生成物でないディレクトリの `rm -r`、`git clean`、`reset --hard`、`restore`、`checkout --`、`stash drop`、`branch -D` |
 | マシンの設定 | | `sudo`、`launchctl` の登録、`crontab` (`-l` を除く)、`defaults write` / `delete` |
 
-コミットメッセージや PR 本文 (`-m`、`--body`、heredoc の本文) に書いただけの文字列は判定から除く。`bash -c` や `eval`、python などを含むコマンドでは除かない。
+コミットメッセージや PR 本文 (`-m`、`--body`、heredoc の本文) に書いただけの文字列は判定から除く。`bash -c` や `eval`、python などを含むコマンドでは除かない。ダブルクォートの値と引用符の無い heredoc の本文のうち、`$(...)` やバッククォートを含むものは実行されるので除かない。
 
 ### ファイルのツールのガード
 

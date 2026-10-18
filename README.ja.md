@@ -33,13 +33,13 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 | 守るブランチ | 守るブランチへの push (そのブランチにいて引数なしの `git push`、`heads/main`、`cd` や `GIT_DIR=` で移った先のリポジトリも)、`:` だけやワイルドカードの refspec | 空のリモートへの初回 push |
 | push の形 | `--no-verify`、`--mirror`、`--delete` / `-d` / `:ref`、`--prune`、`--all` | force push (`+ref` も)、`confirm_push` が有効なときの作業ブランチへの push |
 | フックの回避 | `core.hooksPath`、`git -c`、`--config-env`、`GIT_CONFIG_*`、alias と include の設定、core / alias / include のセクションの削除、`HOME=` / `XDG_CONFIG_HOME=` を変えた git、`~/.gitconfig` / `~/.config/git/config` の書き換え、commit / merge の `--no-verify` (`commit -n`) | |
-| 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、キーチェーンの値 | |
+| 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、git の資格情報 (`~/.git-credentials`、`git credential fill`)、キーチェーンの値。`<`、`rev:`、`--opt=` の後の名前と、展開するとこれらになるグロブやブレース (`.en?`、`.e{n,x}v`) も | |
 | ハーネス | `~/.claude` の settings・フック・プラグイン、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` の Bash での書き換え | `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
 | 取得したコードの実行 | `curl` / `wget` の出力を sh に渡すパイプ | プロセス置換、`bash -c "$(curl ...)"`、`eval` |
 | 消す操作 | ルートやホームへの `rm -r` | ビルドの生成物でないディレクトリの `rm -r`、`git clean`、`reset --hard`、`restore`、`checkout --`、`stash drop`、`branch -D` |
 | マシンの設定 | | `sudo`、`launchctl` の登録、`crontab`、`defaults write` |
 
-コミットメッセージや PR 本文 (`-m`、`--body`、heredoc) に書いただけの文字列は判定しません。ただし `bash -c`、`eval`、python などを含むコマンドでは除きません。
+コミットメッセージや PR 本文 (`-m`、`--body`、heredoc) に書いただけの文字列は判定しません。ただし `bash -c`、`eval`、python などを含むコマンドでは除きません。ダブルクォートの値や引用符の無い heredoc の中の `$(...)` とバッククォートは実行されるので、判定します。
 
 ### ファイルのツール (`guard-file.sh`)
 

@@ -21,8 +21,9 @@ path="$(jq -er '.tool_input.file_path // .tool_input.notebook_path // .tool_inpu
 
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
-# Normalize ~ and lower-case so the patterns see one form
+# Normalize ~, // and /./ and dir/.. and lower-case so the patterns see one form (~//.netrc and ~/x/../.netrc are ~/.netrc)
 path="${path/#\~/$HOME}"
+path="$(sed -E -e ':a' -e 's#/\./#/#g; s#//+#/#g; s#/[^/]+/\.\./#/#; ta' <<<"$path")"
 path_l="$(lower "$path")"
 home_l="$(lower "$HOME")"
 

@@ -66,7 +66,7 @@ is_protected_branch() {
 
 # secret_path_re: file paths the file-tool guard treats as secrets (grep -E, matched against the whole path).
 # shellcheck disable=SC2034
-SECRET_PATH_RE='(^|/)(\.env|\.env\.[A-Za-z0-9._-]+|\.dev\.vars(\.[A-Za-z0-9_-]+)?)$|\.tfvars(\.json)?$|\.tfstate(\.[A-Za-z0-9_-]+)?$|token[^/]*\.txt$|\.(pem|key|p8|p12|mobileprovision)$|(^|/)AuthKey_[^/]*$|firebase-adminsdk[^/]*\.json$|[Ss]ervice-?[Aa]ccount[^/]*\.json$|(^|/)\.ssh/|(^|/)\.aws/|(^|/)\.config/(gcloud|gh)/|(^|/)\.kube/|(^|/)\.docker/config\.json$'
+SECRET_PATH_RE='(^|/)(\.env|\.env\.[A-Za-z0-9._-]+|\.dev\.vars(\.[A-Za-z0-9_-]+)?)$|\.tfvars(\.json)?$|\.tfstate(\.[A-Za-z0-9_-]+)?$|token[^/]*\.txt$|\.(pem|key|p8|p12|mobileprovision)$|(^|/)AuthKey_[^/]*$|firebase-adminsdk[^/]*\.json$|[Ss]ervice-?[Aa]ccount[^/]*\.json$|(^|/)\.ssh/|(^|/)\.aws/|(^|/)\.config/(gcloud|gh)/|(^|/)\.git-credentials$|(^|/)\.config/git/credentials$|(^|/)\.kube/|(^|/)\.docker/config\.json$'
 # Home-level credential files; a project .npmrc (registry settings) is not covered
 # shellcheck disable=SC2034
 HOME_SECRET_FILES=".netrc .npmrc .pypirc"

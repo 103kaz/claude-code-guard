@@ -816,6 +816,14 @@ check_file $BLOCK Write "$HOME/.gitconfig"
 check_file $BLOCK Edit "$HOME/.config/git/config"
 check_file $ALLOW Read "$HOME/.gitconfig"
 check_file $ALLOW Edit '/work/app/.gitconfig.example'
+# 認証情報: git の資格情報ファイル、パスの書き方の揺れ (// や /./ や ..)
+check_file $BLOCK Read "$HOME/.git-credentials"
+check_file $BLOCK Read "$HOME/.config/git/credentials"
+check_file $BLOCK Read "$HOME/./.netrc"
+check_file $BLOCK Read "$HOME//.netrc"
+check_file $BLOCK Read "$HOME/x/../.netrc"
+check_file $BLOCK Read '/work/app/./.env'
+check_file $ALLOW Read '/work/app/.git-credentials.md'
 check_file $ASK   Edit "$HOME/.claude/settings.json"
 check_file $ASK   Edit '/work/.claude/settings.json'
 check_file $ASK   Write '/work/.claude/hooks/x.sh'
@@ -874,6 +882,64 @@ check $ALLOW 'rg "terraform" .'
 check $ALLOW 'ls "$HOME/git"'
 check $ALLOW 'X="a git b"; echo $X'
 check $BLOCK 'bash -c "git push origin main"'
+
+# --- 機密値: メッセージの値や heredoc の本文の中のコマンド置換は実行されるので判定する ---
+check $BLOCK 'git commit -m "$(cat .env)"'
+check $BLOCK 'git commit -m "`cat .env`"'
+check $BLOCK 'gh pr create --title x --body "$(cat ~/.aws/credentials)"'
+check $BLOCK 'gh pr create -t x -b "$(cat .env.local)"'
+check $BLOCK $'cat <<EOF\n$(cat .env)\nEOF'
+check $BLOCK $'git commit -F - <<EOF\n$(cat .env.local)\nEOF'
+check $BLOCK $'cat <<EOF\n$(echo x > .claude/settings.json)\nEOF'
+check $BLOCK $'tee x <<EOF\n$(rm .githooks/pre-push)\nEOF'
+# 本文の行のうち、実行されるのは $( ) とバッククォートの中だけ
+check $ALLOW $'cat > docs/x.md <<EOF\nrun $(date) then rm .githooks/x\nEOF'
+check $BLOCK $'cat > docs/x.md <<EOF\nnote `cat .env` here\nEOF'
+check $ALLOW '(chmod +x .githooks/pre-push)'
+# 展開が起きない形 (シングルクォート、引用符付きの heredoc) は文字列のまま
+check $ALLOW "git commit -m 'fix: \$(cat .env) の説明'"
+check $ALLOW $'cat <<\'EOF\'\n$(cat .env)\nEOF'
+check $ALLOW $'git commit -m "$(cat <<\'EOF\'\nfix: .env の扱い\nEOF\n)"'
+check $ALLOW 'git commit -m "fix: $HOME の扱い"'
+# --- 機密値: パスの直前の文字 (リダイレクト、rev:path、--opt=) ---
+check $BLOCK 'cat <.env'
+check $BLOCK 'cat<.env'
+check $BLOCK 'cat <prod.tfvars'
+check $BLOCK 'git show HEAD:.env'
+check $BLOCK 'git show HEAD:infra/prod.tfvars'
+check $BLOCK 'git show main:.env.local'
+check $BLOCK 'docker run --env-file=.env app'
+check $ALLOW 'cat .env.example'
+check $ALLOW 'git show HEAD:.env.example'
+# --- 機密値: グロブとブレース展開で名前を組み立てる形 ---
+check $BLOCK 'cat .en?'
+check $BLOCK 'cat .e*v'
+check $BLOCK 'cat .en[v]'
+check $BLOCK 'cat .env.*'
+check $BLOCK 'cat infra/*.tfvars'
+check $BLOCK 'cat *.tfvar?'
+check $BLOCK 'cat certs/*.pem'
+check $BLOCK 'cat .e{n,x}v'
+check $BLOCK 'grep -r password --include=*.tfvars .'
+check $ALLOW 'ls *.ts'
+check $ALLOW 'cat src/*'
+check $ALLOW 'rm -f *.log'
+check $ALLOW 'ls *.*'
+check $ALLOW "grep -rn 'e.*v' src/"
+check $ALLOW 'echo {a,b}.txt'
+# --- 認証情報の網羅 ---
+check $BLOCK 'cat ~/.git-credentials'
+check $BLOCK 'cat "$HOME/.config/git/credentials"'
+check $BLOCK 'printf "protocol=https\nhost=github.com\n" | git credential fill'
+check $BLOCK 'git credential-osxkeychain get'
+check $BLOCK 'cat ~/.aws/sso/cache/x.json'
+check $BLOCK 'cat ~/.aws/cli/cache/x.json'
+check $BLOCK 'cat ~/./.netrc'
+check $BLOCK 'cat ~//.netrc'
+check $ALLOW 'git credential-cache exit'
+check $BLOCK 'git-credential-osxkeychain get'
+check $BLOCK '/usr/local/bin/git-credential-manager get'
+check $ALLOW 'git config credential.helper'
 
 # --- git push: refspec の別の書き方・対象のリポジトリを変える形 ---
 # 先頭の refs/ を省いた heads/main も守るブランチ (git は refs/heads/main と読む)
