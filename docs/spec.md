@@ -8,7 +8,7 @@ Claude Code のプラグイン `code-guard` の仕様。Claude Code が実行し
 |---|---|
 | リポジトリ | `103kaz/claude-code-guard` |
 | プラグイン名 | `code-guard` (`claude-` で始まる名前は予約されていて使えない) |
-| v1 の範囲 | ガードと検証ループ |
+| v1 の範囲 | ガードと検証ループ。補助のスキルとして、`setup-verify` (検証ループの雛形) と `doc-code-consistency` (文書と実装の照合) |
 | 中核のルール | 利用者は緩められない。設定で変えられるのは、守るブランチ、パックの有効・無効、検証ループのやり直しの回数など |
 | 言語 | Claude に返すメッセージは英語。README は英語と日本語 |
 | 依存 | bash 3.2 以上、jq、perl。macOS と Linux。Windows は対象外 |
@@ -30,8 +30,10 @@ claude-code-guard/
 │   ├── verify-loop.sh      # UserPromptSubmit と Stop
 │   └── lib/                # 共通の関数 (判定結果の出力、設定の読み込み)
 ├── skills/
-│   └── setup-verify/
-│       └── SKILL.md        # /code-guard:setup-verify
+│   ├── setup-verify/
+│   │   └── SKILL.md        # /code-guard:setup-verify
+│   └── doc-code-consistency/
+│       └── SKILL.md        # /code-guard:doc-code-consistency (文書と実装の照合)
 ├── tests/
 │   ├── test-guard.sh
 │   └── test-verify.sh
@@ -148,6 +150,18 @@ Glob はファイル名を返すだけなので対象にしない。
 
 検証ループは Claude に直させるための仕組みで、強制ではない。`verify.sh` を通さずに終える方法は残る。
 
+## 文書の照合
+
+`/code-guard:doc-code-consistency` のスキル。文書 (README、`docs/`、`CLAUDE.md`、`CHANGELOG`、コメント) から実装に照らして真偽が決まる主張を抜き出し、1 つずつコードと照らす。結果は、矛盾・陳腐化・記載漏れ・要判断・未検証に分けて、file:line の証拠付きで報告する。
+
+| 項目 | 決定 |
+|---|---|
+| 書き込み | しない。直すのは、ユーザーが頼んだときだけ |
+| 実行 | 副作用の無い読み取りだけ (`--help`、`git grep` など)。文書に書かれたコマンドを確かめるために実行しない |
+| 機密値 | 中核の機密値のファイルは読まない |
+| 範囲 | 指定に従う。PR の前は、ブランチの差分の変更行に含まれる主張と、差分で変えた実装に触れている既存の記述 |
+| トークン | 常に載るのは 1 行の説明だけ。手順の本文は実行したときに読み込まれる |
+
 ## 設定 (userConfig)
 
 | キー | 型 | 既定 | 内容 |
@@ -210,7 +224,7 @@ README の先頭近くに書く。
 ## 対象外 (v1)
 
 - 運用ルール (PR の書き方、コミットメッセージ、文章の方針)
-- レビューのスキル (`adversarial-review`、`doc-code-consistency`) と `/review-loop`、`/retro`、`/address-comments`
+- コードレビューのスキル (`adversarial-review`) と `/review-loop`、`/retro`、`/address-comments`。文書と実装の照合 (`doc-code-consistency`) は同梱する
 - pre-push の gitleaks
 - サンドボックスの設定 (README の例だけ)
 - Windows
