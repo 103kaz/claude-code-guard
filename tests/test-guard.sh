@@ -884,7 +884,12 @@ check $ALLOW 'git push origin HEAD:heads/feat/main'
 check $BLOCK 'git push origin :'
 check $BLOCK 'git push origin +:'
 check $BLOCK "git push origin 'refs/heads/*:refs/heads/*'"
-check $BLOCK 'git push origin "feat/*"'
+check $BLOCK 'git push origin "ma*"'
+check $BLOCK 'git push origin "feat/*:*"'
+# 宛先が守るブランチに当たりえないワイルドカードは通す
+check $ALLOW 'git push origin "feat/*"'
+check $ALLOW 'git push origin feature-*'
+check $ALLOW "git push origin 'refs/tags/*'"
 check $ALLOW 'git push origin feat/x && echo :done'
 # cd / GIT_DIR で別のリポジトリに移ってからの push は、移った先のブランチで判定する
 check $BLOCK 'cd ../repo_main && git push'
@@ -904,6 +909,22 @@ check $BLOCK 'git push origin "@"'
 check $BLOCK 'git push origin head'
 check $ALLOW 'GIT_DIR=../repo_feat/.git git push origin HEAD'
 check $ALLOW 'cd ../repo_feat && git push'
+# 文字列の中の cd、別のコマンドの GIT_DIR=、失敗しうる cd は、push の場所を変えない (main のまま)
+check $BLOCK 'echo "a; cd /tmp" && git push'
+check $BLOCK "printf '%s\\n' \"x|cd /tmp\"; git push origin HEAD"
+check $BLOCK 'echo GIT_DIR=/tmp && git push'
+check $BLOCK 'GIT_DIR=/nonexistent true; git push'
+check $BLOCK 'cd ../repo_feat || true; git push'
+check $BLOCK 'cd ../repo_feat; git push'
+check $BLOCK 'cd -- . && git push'
+check $BLOCK 'cd "../repo_main" && git push'
+check $ALLOW "cd '../repo_feat' && git push origin HEAD"
+# push の直後に空白なしで ; && | ) が続く形、括弧で囲んだ形
+check $BLOCK 'git push; echo done'
+check $BLOCK 'git push&&echo done'
+check $BLOCK 'git push|cat'
+check $BLOCK '(git push)'
+check $BLOCK '{ git push; }'
 GUARD_CWD="$TMPROOT/repo_feat"
 
 # --- フックを飛ばす commit / merge (--no-verify、commit -n) ---

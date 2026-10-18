@@ -242,11 +242,19 @@ fi
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]:[^[:space:]:]" <<<"$cmd_refspec"; then
   block "git push with a refspec starting with a colon (deleting a remote branch) is not allowed"
 fi
-# A lone ":" (push all matching branches) and wildcard refspecs can include a protected branch
-if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]\+?:([[:space:]]|$)|${GIT_PUSH}([^|;&]*)[[:space:]][^-[:space:]][^[:space:]]*\*" <<<"$cmd_refspec"; then
-  block "git push with a lone ':' or a wildcard refspec is not allowed (it can push a protected branch)"
+# A lone ":" pushes all matching branches, a protected one included
+if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]\+?:([[:space:]]|$)" <<<"$cmd_refspec"; then
+  block "git push with a lone ':' (all matching branches) is not allowed (it can push a protected branch)"
 fi
-if grep -Eq "${GIT_PUSH}([[:space:]\"']|$)" <<<"$cmd_msg"; then
+# A wildcard refspec is blocked when its destination (the source when there is no ':') can match a protected branch
+# (refs/heads/*:refs/heads/*, ma*). feat/* cannot
+wild_hit="$(PROT="$PROTECTED_LIST" perl -ne 'next unless /\bgit\b[^;&|\n]*?\spush\b([^;&|)\n]*)/;
+  for my $r (split " ", $1) { next if $r =~ /^-/ || $r !~ /\*/; $r =~ s/^\+//;
+    my $dst = $r =~ /:(.*)$/ ? $1 : $r; $dst =~ s{^(refs/)?heads/}{};
+    (my $re = quotemeta $dst) =~ s/\\\*/.*/g;
+    for my $b (split /, /, $ENV{PROT}) { if ($b =~ /^$re$/) { print $r; exit } } }' <<<"$cmd_refspec" 2>/dev/null)"
+[ -n "$wild_hit" ] && block "git push with a wildcard refspec that can reach a protected branch ($wild_hit) is not allowed"
+if grep -Eq "${GIT_PUSH}([[:space:]\"';&|)]|$)" <<<"$cmd_msg"; then
   # Is the push target a protected branch: named in the refspec, or on a protected branch with no refspec / HEAD (git push, git push origin HEAD)
   push_main=0
   # heads/main without refs/ is the same ref for git
@@ -259,19 +267,29 @@ if grep -Eq "${GIT_PUSH}([[:space:]\"']|$)" <<<"$cmd_msg"; then
       if ($d eq "" && $o =~ /--(?:work-tree|git-dir)(?:=|\s+)(\S+)/) { $d = $1 }
       $d =~ s/^["\x27]|["\x27]$//g; print $d; exit }' <<<"$cmd_msg")"
   # cd / pushd and GIT_DIR= before the push move it to another repository: follow them (a variable is not resolved)
-  IFS=$'\037' read -r push_cd push_gitdir push_unknown <<<"$(perl -0ne 'exit unless /(?:^|[\s;&|(`])(?:\S*\/)?git\b[^;&|\n]*?\s+push\b/;
-      my $pre = substr($_, 0, $-[0]); my ($d, $g, $u) = ("", "", 0); my @stack;
+  # Quoted text is not a command (echo "a; cd /tmp"). GIT_DIR= counts only as a prefix of the push itself or an export.
+  # A cd that is not joined to the push by && may fail and leave the push where it was (cd x || true; git push),
+  # so then both places are checked (push_sure=0)
+  IFS=$'\037' read -r push_cd push_gitdir push_unknown push_sure <<<"$(perl -0ne 'exit unless /(?:^|[\s;&|(`])(?:\S*\/)?git\b[^;&|\n]*?\s+push\b/;
+      my $pre = substr($_, 0, $-[0]); my ($d, $g, $u, $sure) = ("", "", 0, 1); my @stack;
+      # keep the text of a quoted word, but its separators and spaces cannot start or end a command
+      $pre =~ s{"((?:[^"\\]|\\.)*)"|\x27([^\x27]*)\x27}{ my $s = defined $1 ? $1 : $2; $s =~ s/[;&|\n(){}]/_/g; $s =~ s/[ \t]/\x01/g; $s }gse;
       # a cd inside a finished subshell (cd x && make) does not move the push
       1 while $pre =~ s/\([^()]*\)//g;
-      while ($pre =~ /(?:^|[;&|(\n])\s*(?:builtin\s+)?(cd|pushd|popd)(?:[ \t]+((?:"[^"]*"|\x27[^\x27]*\x27|[^\s;&|()])+))?/g) {
-        if ($1 eq "popd") { $d = @stack ? pop @stack : ""; next }
-        push @stack, $d if $1 eq "pushd";
-        my $t = defined $2 ? $2 : "~"; $t =~ s/["\x27]//g;
-        if ($t =~ /[\$`]/ || $t eq "-") { $u = 1; next }
+      while ($pre =~ /(?:^|[;&|(\n{])\s*(?:builtin\s+)?(cd|pushd|popd)(?:[ \t]+((?:-[LPe@]+[ \t]+|--[ \t]+)*)([^\s;&|()]+))?/g) {
+        my ($c, $t) = ($1, $3);
+        $sure = 0 if substr($pre, $+[0]) =~ /;|\|\||\n|(?<!\|)\|(?!\|)/;
+        if ($c eq "popd") { $d = @stack ? pop @stack : ""; next }
+        push @stack, $d if $c eq "pushd";
+        $t = "~" unless defined $t; $t =~ s/\x01/ /g;
+        if ($t =~ /[\$`*?\[]/ || $t eq "-") { $u = 1; next }
         $t =~ s{^~(?=/|$)}{$ENV{HOME}}; $d = ($t =~ m{^/} || $d eq "") ? $t : "$d/$t" }
-      while ($pre =~ /(?:^|[\s;&|(])GIT_DIR=("[^"]*"|\x27[^\x27]*\x27|[^\s;&|()]+)/g) { $g = $1 }
-      $g =~ s/["\x27]//g; $u = 1 if $g =~ /[\$`]/;
-      print "$d\037$g\037$u"' <<<"$cmd_msg")"
+      my ($tail) = $pre =~ /([^;&|(\n]*)$/;
+      while ($tail =~ /(?:^|\s)GIT_DIR=(\S+)/g) { $g = $1 }
+      $g =~ s/\x01/ /g;
+      while ($pre =~ /(?:^|[;&|(\n])\s*export\s+GIT_DIR=(\S+)/g) { $g = $1 }
+      $u = 1 if $g =~ /[\$`]/;
+      print "$d\037$g\037$u\037$sure"' <<<"$cmd_msg")"
   [ "${push_unknown:-0}" = 1 ] && soft_block "git push after cd / GIT_DIR= with a variable: the repository (and its branch) cannot be read"
   case "$push_dir" in /*) push_dir_eff="$push_dir" ;; "") push_dir_eff="${push_cd:-.}" ;; *) push_dir_eff="${push_cd:-.}/$push_dir" ;; esac
   # git_at <args>: run git where the push will run
@@ -279,8 +297,13 @@ if grep -Eq "${GIT_PUSH}([[:space:]\"']|$)" <<<"$cmd_msg"; then
     if [ -n "$push_gitdir" ]; then GIT_DIR="$push_gitdir" git -C "$push_dir_eff" "$@"; else git -C "$push_dir_eff" "$@"; fi
   }
   cur_branch="$(git_at rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  # A cd that may not have happened: the push may run where it started, so a protected branch there counts too
+  if [ "${push_sure:-1}" = 0 ] && [ -n "$push_cd" ] && ! is_protected_branch "$cur_branch"; then
+    alt_branch="$(git -C "${push_dir:-.}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    is_protected_branch "$alt_branch" && { cur_branch="$alt_branch"; push_dir_eff="${push_dir:-.}"; }
+  fi
   # Positional arguments after push, minus options and their values (remote, refspec...). Quotes are removed ('HEAD' is HEAD)
-  push_args="$(perl -ne 'if (/\bpush\b([^;&|]*)/) { my @w = split " ", $1; my @p; while (@w) { my $x = shift @w; $x =~ s/["\x27]//g; if ($x =~ /^(-o|--push-option|--repo|--receive-pack|--exec)$/) { shift @w; next } next if $x =~ /^-/; push @p, $x } print join(" ", @p) }' <<<"$cmd_msg")"
+  push_args="$(perl -ne 'if (/\bpush\b([^;&|)]*)/) { my @w = split " ", $1; my @p; while (@w) { my $x = shift @w; $x =~ s/["\x27]//g; if ($x =~ /^(-o|--push-option|--repo|--receive-pack|--exec)$/) { shift @w; next } next if $x =~ /^-/; push @p, $x } print join(" ", @p) }' <<<"$cmd_msg")"
   read -r -a push_pos <<<"$push_args"
   if [ "$push_main" = 0 ] && is_protected_branch "$cur_branch"; then
     if [ "${#push_pos[@]}" -le 1 ]; then
@@ -317,7 +340,7 @@ fi
 
 # Ordinary push to a work branch (no force): ask unless confirm_push is off
 if [ -z "$pending_ask" ] && [ "$(opt_bool CONFIRM_PUSH true)" = true ] \
-   && grep -Eq "${GIT_PUSH}([[:space:]\"']|$)" <<<"$cmd_msg"; then
+   && grep -Eq "${GIT_PUSH}([[:space:]\"';&|)]|$)" <<<"$cmd_msg"; then
   add_ask "git push: confirm the user wants this push before approving"
 fi
 
