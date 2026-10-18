@@ -75,7 +75,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 ## 文書の照合
 
-`/code-guard:doc-code-consistency` は、文書 (README、`docs/`、`CLAUDE.md`、`CHANGELOG`、コメント) が実装と合っているかを確かめ、矛盾・陳腐化・記載漏れを file:line の証拠付きで報告します。読むだけで、書き換えません。PR の前にブランチの差分に対して流すか、確かめたい文書や機能を指定します。
+`/code-guard:doc-code-consistency` は、文書 (README、`docs/`、`CLAUDE.md`、`CHANGELOG`、コメント) が実装と合っているかを確かめ、矛盾・陳腐化・記載漏れを file:line の証拠付きで報告します。ふだんは読むだけで、ファイルを直すのは、指摘を直すよう頼んだときだけです。PR の前にブランチの差分に対して流すか、確かめたい文書や機能を指定します。
 
 ## トークンの消費
 

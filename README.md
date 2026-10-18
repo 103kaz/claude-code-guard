@@ -75,7 +75,7 @@ Create the script with `/code-guard:setup-verify`. It looks at your build files 
 
 ## Docs check
 
-`/code-guard:doc-code-consistency` checks that the documentation (README, `docs/`, `CLAUDE.md`, `CHANGELOG`, comments) matches the code, and reports contradictions, stale text and missing items with file:line evidence. It only reads. Run it before a pull request on the branch diff, or name a document or feature to check.
+`/code-guard:doc-code-consistency` checks that the documentation (README, `docs/`, `CLAUDE.md`, `CHANGELOG`, comments) matches the code, and reports contradictions, stale text and missing items with file:line evidence. It only reads, and changes files only when you ask it to fix a finding. Run it before a pull request on the branch diff, or name a document or feature to check.
 
 ## Token cost
 

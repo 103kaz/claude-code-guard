@@ -33,7 +33,7 @@ claude-code-guard/
 │   ├── setup-verify/
 │   │   └── SKILL.md        # /code-guard:setup-verify
 │   └── doc-code-consistency/
-│       └── SKILL.md        # /code-guard:doc-code-consistency (文書と実装の照合、読むだけ)
+│       └── SKILL.md        # /code-guard:doc-code-consistency (文書と実装の照合)
 ├── tests/
 │   ├── test-guard.sh
 │   └── test-verify.sh
