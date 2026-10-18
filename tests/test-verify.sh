@@ -174,6 +174,12 @@ run_hook ng1 mark; run_hook ng1
 sleep 1; echo b >>"$repo/a.txt"
 run_hook ng1
 [ "$RC" = 2 ] || ng "did not verify a change outside git (rc=$RC)"
+# A rename and a delete keep the modification times but change the file list
+echo c >"$repo/b.txt"
+run_hook ng3 mark; mv "$repo/b.txt" "$repo/c.txt"; run_hook ng3
+[ "$RC" = 2 ] || ng "did not verify a rename outside git (rc=$RC)"
+run_hook ng4 mark; rm "$repo/c.txt"; run_hook ng4
+[ "$RC" = 2 ] || ng "did not verify a delete outside git (rc=$RC)"
 # Without a mark outside git, run (nothing to compare with)
 run_hook ng2
 [ "$RC" = 2 ] || ng "did not verify outside git without a mark (rc=$RC)"
