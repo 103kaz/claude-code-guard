@@ -30,9 +30,9 @@ Each decision is one of: **block** (exit 2, cannot be approved), **ask** (a conf
 
 | Area | Block | Ask |
 |---|---|---|
-| Protected branches | push to a protected branch (a bare `git push` on one included) | first push to an empty remote |
+| Protected branches | push to a protected branch (a bare `git push` on one, `heads/main`, and a repository reached through `cd` or `GIT_DIR=` included), a lone `:` or a wildcard refspec | first push to an empty remote |
 | Push shape | `--no-verify`, `--mirror`, `--delete` / `-d` / `:ref`, `--prune`, `--all` | force push (`+ref` included), every work-branch push when `confirm_push` is on |
-| Hook bypass | `core.hooksPath`, `git -c`, `--config-env`, `GIT_CONFIG_*`, alias / include settings | |
+| Hook bypass | `core.hooksPath`, `git -c`, `--config-env`, `GIT_CONFIG_*`, alias / include settings, removing the core / alias / include section, git with `HOME=` / `XDG_CONFIG_HOME=`, writes to `~/.gitconfig` / `~/.config/git/config`, `--no-verify` on commit / merge (`commit -n`) | |
 | Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, keychain values | |
 | Harness | Bash writes to `~/.claude` settings / hooks / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks` | Bash writes to `.claude/hooks`, `.claude/verify.sh`, `.github/workflows` |
 | Fetched code | `curl` / `wget` piped to a shell | process substitution, `bash -c "$(curl ...)"`, `eval` |
@@ -48,7 +48,7 @@ Plugins cannot ship permission rules, so these live in a hook.
 | Tool | Block | Ask |
 |---|---|---|
 | Read, Grep | secret files (same patterns as the core secret rules) | |
-| Edit, Write, MultiEdit, NotebookEdit | `*.tfvars`, `.git/config`, `.git/hooks` | `~/.claude`, `.claude/settings*`, `.claude/hooks`, `.claude/verify.sh`, `.githooks`, `.github/workflows` |
+| Edit, Write, MultiEdit, NotebookEdit | `*.tfvars`, `.git/config`, `.git/hooks`, `~/.gitconfig`, `~/.config/git/config` | `~/.claude`, `.claude/settings*`, `.claude/hooks`, `.claude/verify.sh`, `.githooks`, `.github/workflows` |
 
 ### MCP tools (`guard-mcp.sh`)
 

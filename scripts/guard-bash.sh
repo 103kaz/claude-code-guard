@@ -153,7 +153,7 @@ cmd_nr="$(perl -pe 's/((?:^|[\s;&|(])(?:grep|egrep|fgrep|rg|ag)(?:\s+-[^\s\x27"]
 # target) are dropped, and (2) a write operation and a protected path must be in the same segment, split at && / || / newline.
 # The split ignores quotes and does not split on ; or | (so sed -i 's/a/b/;s/c/d/' .githooks/x is caught).
 # Trailing backslash lines are joined first. A << inside quotes is read as a heredoc and the rest is skipped (a known gap; this is not a sandbox)
-cmd_home="$(sed -E 's#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g' <<<"$cmd_nr" \
+cmd_home="$(sed -E 's#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.gitconfig([^[:alnum:]_.-]|$)#HOMEGITCONFIG\2#g' <<<"$cmd_nr" \
   | awk '{ if (skip != "") { t = $0; if (dash) sub(/^\t+/, "", t); if (t == skip) skip = ""; next }
            print
            l = $0; gsub(/<<</, "", l)
@@ -170,8 +170,8 @@ while IFS= read -r seg; do
   # A redirect (chmod +x f > .githooks/x) stays and is judged as a write
   seg_w="$(sed -E 's#(^|[[:space:];&|])chmod[[:space:]]+[ugoa]*\+x([[:space:]]+[^;&|<>[:space:]]+)*##g' <<<"$seg")"
   if grep -Eq '>[[:space:]]*[^&[:space:]]|sed[[:space:]]+(-[a-zA-Z]*i|--in-place)|(^|[[:space:];&|])(rm|mv|cp|tee|chmod|ln|truncate|install)[[:space:]]' <<<"$seg_w"; then
-    if grep -Eq 'HOMECLAUDE/(hooks|settings|plugins)|\.claude/settings|\.githooks|\.git/(config|hooks)' <<<"$seg_w"; then
-      block "changing the harness (~/.claude hooks / settings / plugins, .claude/settings*, .githooks, .git/config, .git/hooks) through Bash is not allowed (chmod +x alone is fine)"
+    if grep -Eq 'HOMECLAUDE/(hooks|settings|plugins)|\.claude/settings|\.githooks|\.git/(config|hooks)|HOMEGITCONFIG|\.config/git/config' <<<"$seg_w"; then
+      block "changing the harness (~/.claude hooks / settings / plugins, .claude/settings*, .githooks, .git/config, .git/hooks, ~/.gitconfig, ~/.config/git/config) through Bash is not allowed (chmod +x alone is fine)"
     elif grep -Eq '\.claude/(hooks|verify\.sh)' <<<"$seg_w"; then
       add_ask "changing .claude/hooks / .claude/verify.sh: confirm the user has OKed this change in chat before approving"
     elif grep -Eq '\.github/workflows' <<<"$seg_w"; then
@@ -188,7 +188,7 @@ fi
 # Reading (git config core.hooksPath / --get) is fine. Setting a value (other than .githooks) and --unset are blocked
 # git config keys are case-insensitive (core.hookspath is the same key)
 if grep -Eiq "${P}git([[:space:]]+-[^[:space:]]+)*[[:space:]]+config([^|;&]*)core\.hooksPath" <<<"$cmd_msg" \
-   && { grep -Eq "config([^|;&]*)--(unset|unset-all|remove-section)" <<<"$cmd_msg" \
+   && { grep -Eq "config([^|;&]*)[[:space:]](--)?(unset|unset-all|remove-section)([[:space:]]|$)" <<<"$cmd_msg" \
         || grep -Eiq 'core\.hooksPath[[:space:]]+[^[:space:];&|]' <<<"$cmd_msg"; } \
    && ! grep -Eiq 'core\.hooksPath[[:space:]]+\.githooks([[:space:];&|]|$)' <<<"$cmd_msg"; then
   block "changing core.hooksPath is not allowed (it disables git hooks)"
@@ -204,11 +204,29 @@ fi
 if grep -Eiq "${P}git([[:space:]]+-[^[:space:]]+)*[[:space:]]+config([^|;&]*)[[:space:]](alias\.[^[:space:]]+|include(if)?\.[^[:space:]]+)[[:space:]]+[^[:space:];&|]" <<<"$cmd"; then
   block "setting alias / include through git config is not allowed (it can bypass hooks and push rules)"
 fi
+# Removing or renaming a whole core / alias / include section drops core.hooksPath with it (old --remove-section and new remove-section)
+if grep -Eiq "${P}git([[:space:]]+-[^[:space:]]+)*[[:space:]]+config([^|;&]*)[[:space:]](--)?(remove|rename)-section[[:space:]]+[\"']?(core|alias|include(if)?)([.\"'[:space:]]|$)" <<<"$cmd_msg"; then
+  block "removing or renaming the core / alias / include section of git config is not allowed (it can drop core.hooksPath)"
+fi
+# Moving the global config (HOME= / XDG_CONFIG_HOME= for a git command) makes git read another .gitconfig, which can set hooksPath / alias
+# Either a prefix of the git command itself (HOME=x [VAR=y] git, env HOME=x git) or an export before a git command
+ASSIGN="[A-Za-z_][A-Za-z0-9_]*=(\"[^\"]*\"|'[^']*'|[^[:space:];&|])*[[:space:]]+"
+if grep -Eq "(^|[[:space:];&|(])(env[[:space:]]+(-[^[:space:]]+[[:space:]]+)*)?(${ASSIGN})*(HOME|XDG_CONFIG_HOME)=(\"[^\"]*\"|'[^']*'|[^[:space:];&|])*[[:space:]]+(${ASSIGN})*([^[:space:];&|]*/)?git[[:space:]]" <<<"$cmd_msg" \
+   || { grep -Eq "(^|[[:space:];&|(])export[[:space:]]+(HOME|XDG_CONFIG_HOME)=" <<<"$cmd_msg" && grep -Eq "${CMDPOS}git[[:space:]]" <<<"$cmd_msg"; }; then
+  block "running git with HOME= / XDG_CONFIG_HOME= changed is not allowed (git would read another global config, which can bypass hooks and push rules)"
+fi
 
 # --- git push: direct push to a protected branch / force push / hook bypass (core) ---
 # git global options, including the ones that take a value (-C "a b", --git-dir <dir>)
 GITOPTS="(-[Cc][[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:]]+)|--(git-dir|work-tree|namespace|exec-path|super-prefix|config-env)[[:space:]]+(\"[^\"]*\"|[^[:space:]]+)|-[^[:space:]]+)"
 GIT_PUSH="${CMDPOS}git([[:space:]]+${GITOPTS})*[[:space:]]+push"
+GIT="${CMDPOS}git([[:space:]]+${GITOPTS})*[[:space:]]+"
+# Hook bypass on commit and merge: --no-verify (and abbreviations) and commit -n. Quoted text is not an option
+cmd_nq="$(sed -E "s/\"[^\"]*\"//g; s/'[^']*'//g" <<<"$cmd_msg")"
+if grep -Eq "${GIT}(commit|merge|am|rebase|cherry-pick|revert|pull)([^|;&]*)[[:space:]]--no-v[a-z]*([^[:alnum:]-]|$)" <<<"$cmd_nq" \
+   || grep -Eq "${GIT}commit([^|;&]*)[[:space:]]-[A-Za-z]*n[A-Za-z]*([^[:alnum:]-]|$)" <<<"$cmd_nq"; then
+  block "git commit / merge with --no-verify (commit -n) is not allowed (it skips the git hooks)"
+fi
 # git also accepts abbreviated long options (--del, --no-ver) and combined short options (-ud)
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]](--no-v[a-z]*|--mi[a-z]*|--de[a-z]*|--pru[a-z]*|--all?|-[A-Za-z]*d[A-Za-z]*)([^[:alnum:]-]|$)" <<<"$cmd_msg"; then
   block "git push --no-verify / --mirror / --delete (-d) / --prune / --all is not allowed"
@@ -224,10 +242,15 @@ fi
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]:[^[:space:]:]" <<<"$cmd_refspec"; then
   block "git push with a refspec starting with a colon (deleting a remote branch) is not allowed"
 fi
+# A lone ":" (push all matching branches) and wildcard refspecs can include a protected branch
+if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]\+?:([[:space:]]|$)|${GIT_PUSH}([^|;&]*)[[:space:]][^-[:space:]][^[:space:]]*\*" <<<"$cmd_refspec"; then
+  block "git push with a lone ':' or a wildcard refspec is not allowed (it can push a protected branch)"
+fi
 if grep -Eq "${GIT_PUSH}([[:space:]\"']|$)" <<<"$cmd_msg"; then
   # Is the push target a protected branch: named in the refspec, or on a protected branch with no refspec / HEAD (git push, git push origin HEAD)
   push_main=0
-  if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]:+\"'](refs/heads/)?(${PROTECTED_RE})([[:space:]\"';&|)]|$)" <<<"$cmd_msg"; then
+  # heads/main without refs/ is the same ref for git
+  if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]:+\"']((refs/)?heads/)?(${PROTECTED_RE})([[:space:]\"';&|)]|$)" <<<"$cmd_msg"; then
     push_main=1
   fi
   # The directory git will act on: the last -C <dir>, else --work-tree / --git-dir, read from the git words before "push"
@@ -235,16 +258,37 @@ if grep -Eq "${GIT_PUSH}([[:space:]\"']|$)" <<<"$cmd_msg"; then
       while ($o =~ /-C\s+("[^"]*"|\x27[^\x27]*\x27|\S+)/g) { $d = $1 }
       if ($d eq "" && $o =~ /--(?:work-tree|git-dir)(?:=|\s+)(\S+)/) { $d = $1 }
       $d =~ s/^["\x27]|["\x27]$//g; print $d; exit }' <<<"$cmd_msg")"
-  cur_branch="$(git -C "${push_dir:-.}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  # Positional arguments after push, minus options and their values (remote, refspec...)
-  push_args="$(perl -ne 'if (/\bpush\b([^;&|]*)/) { my @w = split " ", $1; my @p; while (@w) { my $x = shift @w; if ($x =~ /^(-o|--push-option|--repo|--receive-pack|--exec)$/) { shift @w; next } next if $x =~ /^-/; push @p, $x } print join(" ", @p) }' <<<"$cmd_msg")"
+  # cd / pushd and GIT_DIR= before the push move it to another repository: follow them (a variable is not resolved)
+  IFS=$'\037' read -r push_cd push_gitdir push_unknown <<<"$(perl -0ne 'exit unless /(?:^|[\s;&|(`])(?:\S*\/)?git\b[^;&|\n]*?\s+push\b/;
+      my $pre = substr($_, 0, $-[0]); my ($d, $g, $u) = ("", "", 0); my @stack;
+      # a cd inside a finished subshell (cd x && make) does not move the push
+      1 while $pre =~ s/\([^()]*\)//g;
+      while ($pre =~ /(?:^|[;&|(\n])\s*(?:builtin\s+)?(cd|pushd|popd)(?:[ \t]+((?:"[^"]*"|\x27[^\x27]*\x27|[^\s;&|()])+))?/g) {
+        if ($1 eq "popd") { $d = @stack ? pop @stack : ""; next }
+        push @stack, $d if $1 eq "pushd";
+        my $t = defined $2 ? $2 : "~"; $t =~ s/["\x27]//g;
+        if ($t =~ /[\$`]/ || $t eq "-") { $u = 1; next }
+        $t =~ s{^~(?=/|$)}{$ENV{HOME}}; $d = ($t =~ m{^/} || $d eq "") ? $t : "$d/$t" }
+      while ($pre =~ /(?:^|[\s;&|(])GIT_DIR=("[^"]*"|\x27[^\x27]*\x27|[^\s;&|()]+)/g) { $g = $1 }
+      $g =~ s/["\x27]//g; $u = 1 if $g =~ /[\$`]/;
+      print "$d\037$g\037$u"' <<<"$cmd_msg")"
+  [ "${push_unknown:-0}" = 1 ] && soft_block "git push after cd / GIT_DIR= with a variable: the repository (and its branch) cannot be read"
+  case "$push_dir" in /*) push_dir_eff="$push_dir" ;; "") push_dir_eff="${push_cd:-.}" ;; *) push_dir_eff="${push_cd:-.}/$push_dir" ;; esac
+  # git_at <args>: run git where the push will run
+  git_at() {
+    if [ -n "$push_gitdir" ]; then GIT_DIR="$push_gitdir" git -C "$push_dir_eff" "$@"; else git -C "$push_dir_eff" "$@"; fi
+  }
+  cur_branch="$(git_at rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  # Positional arguments after push, minus options and their values (remote, refspec...). Quotes are removed ('HEAD' is HEAD)
+  push_args="$(perl -ne 'if (/\bpush\b([^;&|]*)/) { my @w = split " ", $1; my @p; while (@w) { my $x = shift @w; $x =~ s/["\x27]//g; if ($x =~ /^(-o|--push-option|--repo|--receive-pack|--exec)$/) { shift @w; next } next if $x =~ /^-/; push @p, $x } print join(" ", @p) }' <<<"$cmd_msg")"
   read -r -a push_pos <<<"$push_args"
   if [ "$push_main" = 0 ] && is_protected_branch "$cur_branch"; then
     if [ "${#push_pos[@]}" -le 1 ]; then
       push_main=1
     else
       for r in "${push_pos[@]:1}"; do
-        case "$r" in HEAD|+HEAD|@|+@) push_main=1 ;; esac
+        # head is HEAD on a case-insensitive file system (the macOS default)
+        case "$(tr '[:lower:]' '[:upper:]' <<<"$r")" in HEAD|+HEAD|@|+@) push_main=1 ;; esac
       done
     fi
   fi
@@ -252,9 +296,9 @@ if grep -Eq "${GIT_PUSH}([[:space:]\"']|$)" <<<"$cmd_msg"; then
     # First-push exception: no remote-tracking ref locally AND the remote itself has no branch (ls-remote exit 2),
     # allow with approval unless forced. An unreachable remote or any other result blocks
     first_push=0
-    if [ -z "$(git -C "${push_dir:-.}" for-each-ref --count=1 refs/remotes 2>/dev/null)" ] \
+    if [ -z "$(git_at for-each-ref --count=1 refs/remotes 2>/dev/null)" ] \
        && ! grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]](-f|--force|--force-with-lease)([[:space:]=]|$)|[[:space:]]\+[^[:space:]]" <<<"$cmd_msg"; then
-      GIT_TERMINAL_PROMPT=0 perl -e 'alarm 15; exec @ARGV' git -C "${push_dir:-.}" ls-remote --exit-code --heads "${push_pos[0]:-origin}" >/dev/null 2>&1
+      GIT_TERMINAL_PROMPT=0 perl -e 'alarm 15; exec @ARGV' env ${push_gitdir:+GIT_DIR="$push_gitdir"} git -C "$push_dir_eff" ls-remote --exit-code --heads "${push_pos[0]:-origin}" >/dev/null 2>&1
       [ $? = 2 ] && first_push=1
     fi
     if [ "$first_push" = 1 ]; then
@@ -359,7 +403,6 @@ fi
 
 # --- git operations that discard uncommitted work (ask) (core) ---
 # Untracked files are not in git history and cannot be restored after clean or reset --hard
-GIT="${CMDPOS}git([[:space:]]+${GITOPTS})*[[:space:]]+"
 if grep -Eq "${GIT}clean([[:space:]\"']|$)" <<<"$cmd_msg" && ! grep -Eq "${GIT}clean([^|;&]*)[[:space:]](-[a-zA-Z]*n[a-zA-Z]*|--dry-run)([[:space:]]|$)" <<<"$cmd_msg"; then
   add_ask "git clean: deletes untracked files. Confirm the user has OKed this in chat before approving"
 elif grep -Eq "${GIT}(reset([^|;&]*)[[:space:]]--hard|stash[[:space:]]+(drop|clear)|branch([^|;&]*)[[:space:]]-D|checkout[[:space:]]+(-f|--force|--|\.)|switch([^|;&]*)[[:space:]](-f|--force|--discard-changes))([[:space:]\"']|$)" <<<"$cmd_msg"; then

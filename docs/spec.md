@@ -84,9 +84,9 @@ jq が無いとフックの入力を読めない。そのときは、そのフ�
 
 | 分類 | block | ask |
 |---|---|---|
-| 守るブランチ | 守るブランチへの push (初回を除く)。守るブランチにいて引数なしの `git push` も含む | 空のリモートへの初回 push |
+| 守るブランチ | 守るブランチへの push (初回を除く)。守るブランチにいて引数なしの `git push`、`heads/main` (`refs/` を省いた形)、`cd` / `pushd` や `GIT_DIR=` で移った先のリポジトリでの push も含む。`:` だけ (一致するブランチをすべて push) とワイルドカードの refspec | 空のリモートへの初回 push |
 | push の形 | `--no-verify`、`--mirror`、`--delete` (`-d` と `:` で始まる refspec を含む)、`--prune`、`--all` | force push (`+` で始まる refspec を含む) |
-| フックの回避 | `core.hooksPath` の変更、`git -c` と `--config-env`、`GIT_CONFIG_*`、alias と include の設定 | |
+| フックの回避 | `core.hooksPath` の変更、`git -c` と `--config-env`、`GIT_CONFIG_*`、alias と include の設定、core / alias / include のセクションの削除と名前の変更 (`--remove-section` と新しい書式の `remove-section`)、`HOME=` / `XDG_CONFIG_HOME=` を変えて git を動かすこと、`~/.gitconfig` と `~/.config/git/config` の書き換え、commit / merge / rebase などの `--no-verify` と `commit -n` | |
 | 機密値 | `.env` と `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産 (`*.p8`、`*.p12`、`*.mobileprovision`、`AuthKey_*`)、サービスアカウント鍵、CLI の認証情報 (`~/.aws`、`~/.config/gcloud`、gh のトークン、`~/.kube`、`~/.docker`、`~/.netrc` など)、キーチェーンの値 | |
 | ハーネス | `~/.claude` の settings とフック、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks`、プラグインの置き場所 (`~/.claude/plugins`) の Bash での書き換え | プロジェクトの `.claude/hooks` と `.claude/verify.sh` の Bash での書き換え |
 | 取得したコードの実行 | `curl` / `wget` の出力を sh に渡すパイプ | プロセス置換、`bash -c "$(curl ...)"`、`eval "$(curl ...)"` |
@@ -102,7 +102,7 @@ jq が無いとフックの入力を読めない。そのときは、そのフ�
 | ツール | block | ask |
 |---|---|---|
 | Read、Grep | 中核の「機密値」と同じパターンのファイル | |
-| Edit、Write、MultiEdit、NotebookEdit | `*.tfvars`、`.git/config`、`.git/hooks` (サブモジュールの `.git/modules/` の下も含む) | `~/.claude` の下、`.claude/settings*`、`.claude/hooks`、`.claude/verify.sh`、`.githooks`、`.github/workflows` |
+| Edit、Write、MultiEdit、NotebookEdit | `*.tfvars`、`.git/config`、`.git/hooks` (サブモジュールの `.git/modules/` の下も含む)、`~/.gitconfig`、`~/.config/git/config` | `~/.claude` の下、`.claude/settings*`、`.claude/hooks`、`.claude/verify.sh`、`.githooks`、`.github/workflows` |
 
 Grep は、対象の `path` が機密値のファイルのときだけ止める。ディレクトリを検索して結果に機密値のファイルが混ざる場合は止められない。この限界は README に書く。
 
