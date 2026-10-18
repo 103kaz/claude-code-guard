@@ -895,6 +895,12 @@ check $BLOCK $'tee x <<EOF\n$(rm .githooks/pre-push)\nEOF'
 # 本文の行のうち、実行されるのは $( ) とバッククォートの中だけ
 check $ALLOW $'cat > docs/x.md <<EOF\nrun $(date) then rm .githooks/x\nEOF'
 check $BLOCK $'cat > docs/x.md <<EOF\nnote `cat .env` here\nEOF'
+# 複数行にまたがる $( と、引用符の中の ) を越えて対応する ) まで読む
+check $BLOCK $'cat <<EOF\n$(\ncat .env\n)\nEOF'
+check $BLOCK $'cat <<EOF\n$(cat ")" .env)\nEOF'
+check $BLOCK $'cat <<EOF\n$(echo ")"; rm .githooks/pre-push)\nEOF'
+check $BLOCK $'cat <<EOF\n$(\nrm .githooks/pre-push\n)\nEOF'
+check $ALLOW $'cat > docs/x.md <<EOF\n$(date) で .env を読む手順\nEOF'
 check $ALLOW '(chmod +x .githooks/pre-push)'
 # 展開が起きない形 (シングルクォート、引用符付きの heredoc) は文字列のまま
 check $ALLOW "git commit -m 'fix: \$(cat .env) の説明'"
@@ -927,6 +933,22 @@ check $ALLOW 'rm -f *.log'
 check $ALLOW 'ls *.*'
 check $ALLOW "grep -rn 'e.*v' src/"
 check $ALLOW 'echo {a,b}.txt'
+# よくある拡張子のグロブと、[[ ]] のパターンは止めない
+check $ALLOW 'ls *.txt'
+check $ALLOW 'wc -l *.txt'
+check $ALLOW 'jq . *.json'
+check $ALLOW 'grep -r --include=*.txt foo .'
+check $ALLOW '[[ $f == *.json ]] && echo y'
+check $ALLOW '[[ $f == .e* ]] && echo y'
+# ブレースの中の /、引用符やバックスラッシュで組み立てた名前
+check $BLOCK 'cat {a/,}.env'
+check $BLOCK 'cat ".en"?'
+check $BLOCK 'cat ".e"nv'
+check $BLOCK 'cat \.en?'
+check $BLOCK 'cat \.env'
+check $BLOCK "cat prod'.tfvars'"
+check $ALLOW 'cat ".e"nv.example'
+check $ALLOW 'grep -rn "x" ".e"slintrc'
 # --- 認証情報の網羅 ---
 check $BLOCK 'cat ~/.git-credentials'
 check $BLOCK 'cat "$HOME/.config/git/credentials"'
@@ -1035,6 +1057,11 @@ printf 'die "broken";\n' > "$tmp_hooks/lib/ambiguous.pl"
 n=$((n + 1))
 out="$(cd "$GUARD_CWD" && printf '%s' 'git status' | jq -Rs '{tool_name:"Bash",tool_input:{command:.}}' | bash "$tmp_hooks/guard-bash.sh" 2>/dev/null)"
 if ! grep -q '"permissionDecision": "ask"' <<<"$out"; then echo "FAIL (want ask when ambiguous.pl fails)"; fail=1; fi
+cp "$HOOKS/lib/ambiguous.pl" "$tmp_hooks/lib/ambiguous.pl"
+printf 'die "broken";\n' > "$tmp_hooks/lib/secret-glob.pl"
+n=$((n + 1))
+out="$(cd "$GUARD_CWD" && printf '%s' 'ls *.ts' | jq -Rs '{tool_name:"Bash",tool_input:{command:.}}' | bash "$tmp_hooks/guard-bash.sh" 2>/dev/null)"
+if ! grep -q '"permissionDecision": "ask"' <<<"$out"; then echo "FAIL (want ask when secret-glob.pl fails)"; fail=1; fi
 rm -rf "$tmp_hooks"
 
 if [ "$fail" = 0 ]; then echo "all $n guard tests passed"; fi

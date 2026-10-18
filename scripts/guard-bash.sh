@@ -27,13 +27,21 @@ ambiguous_rc=$?
 P="(^|[[:space:];&|(\`\"'/])"
 
 # awk program that drops heredoc bodies (data, not commands). In an unquoted heredoc (<<EOF) the shell runs $( ) and
-# backticks, so those parts of a body line are kept (an unclosed $( keeps the rest of the line). A quoted one
-# (<<'EOF', <<"EOF") is data throughout
-HEREDOC_AWK='{ if (skip != "") { t = $0; if (dash) sub(/^\t+/, "", t); if (t == skip) { skip = ""; next }
-    if (!q) { r = $0; out = ""
-      while (match(r, /\$\([^)]*\)|`[^`]*`/)) { out = out " " substr(r, RSTART, RLENGTH); r = substr(r, RSTART + RLENGTH) }
-      if (match(r, /\$\(|`/)) out = out " " substr(r, RSTART)
-      if (out != "") print out }
+# backticks, so those parts of the body are kept: a $( is followed to its matching ), across lines and past a ) inside
+# quotes. A quoted heredoc (<<'EOF', <<"EOF") is data throughout
+HEREDOC_AWK='function grab(s,   i, n, c, out, j) { out = ""; n = length(s)
+    for (i = 1; i <= n; i++) { c = substr(s, i, 1)
+      if (gd > 0) { out = out c
+        if (gq != "") { if (c == gq) gq = ""; continue }
+        if (c == "\"" || c == "\047") { gq = c; continue }
+        if (c == "(") gd++; else if (c == ")") { gd--; if (gd == 0) out = out " " }
+        continue }
+      if (c == "$" && substr(s, i + 1, 1) == "(") { gd = 1; gq = ""; out = out " $("; i++; continue }
+      if (c == "`") { j = index(substr(s, i + 1), "`")
+        if (j) { out = out " " substr(s, i, j + 1); i += j } else { out = out " " substr(s, i); i = n } } }
+    return out }
+  { if (skip != "") { t = $0; if (dash) sub(/^\t+/, "", t); if (t == skip) { skip = ""; gd = 0; next }
+    if (!q) { out = grab($0); if (out ~ /[^ ]/) print out }
     next }
   print
   l = $0; gsub(/<<</, "", l)
@@ -130,27 +138,12 @@ fi
 # Globs and brace expansion build a secret name the rules above cannot see (cat .en?, cat .e{n,x}v, --include=*.tfvars).
 # Each unquoted word with ? * [ or {a,b} is matched against sample secret names. A bare * / *.* / .* is not judged
 # (too common), and a leading dot must be written, as in the shell
-if [[ "$cmd_sec" == *[\?\*\[\{]* ]]; then
-  glob_hit="$(perl -0ne 's/"[^"]*"|\x27[^\x27]*\x27/ /g;
-    my @names = (".env", ".env.local", ".env.production", ".dev.vars", "prod.tfvars", "prod.tfvars.json", "terraform.tfstate",
-                 "terraform.tfstate.backup", "server.key", "server.pem", "id_rsa", "id_ed25519", "id_ecdsa", "token.txt", "AuthKey_X.p8", "cert.p12");
-    for my $w (split /[\s;&|()<>`]+/) {
-      $w =~ s/^[^=]*=// if $w =~ /^-/;
-      $w =~ s{.*/}{};
-      next unless $w =~ /[?*\[{]/;
-      next if $w =~ /^[*.]*$/;
-      my @alts = ($w);
-      for (1 .. 8) { last unless grep { /\{[^{}]*,[^{}]*\}/ } @alts;
-        @alts = map { /^(.*?)\{([^{}]*,[^{}]*)\}(.*)$/ ? do { my ($a, $b, $c) = ($1, $2, $3); map { "$a$_$c" } split(/,/, $b, -1) } : $_ } @alts }
-      for my $g (@alts) {
-        my $re = "";
-        while ($g =~ /\G(?:(\*)|(\?)|(\[!?[^\]]+\])|(.))/gcs) {
-          $re .= defined $1 ? "[^/]*" : defined $2 ? "[^/]" : defined $3 ? do { (my $c = $3) =~ s/^\[!/[^/; $c } : quotemeta($4) }
-        for my $n (@names) {
-          next if $n =~ /^\./ && $g !~ /^\./;
-          if ($n =~ /^$re$/) { print $w; exit }
-        } } }' <<<"$cmd_sec" 2>/dev/null)"
-  [ -n "$glob_hit" ] && block "a glob or brace pattern ($glob_hit) can expand to a secret file name (.env, *.tfvars, keys); name the files explicitly"
+# Names built from quotes or backslashes (cat ".e"nv) are read the same way (lib/secret-glob.pl)
+if [[ "$cmd_sec" == *[\?\*\[\{\"\'\\]* ]]; then
+  glob_hit="$(SRE="$SECRET_PATH_RE" perl "${BASH_SOURCE[0]%/*}/lib/secret-glob.pl" <<<"$cmd_sec" 2>/dev/null)"
+  glob_rc=$?
+  [ -n "$glob_hit" ] && block "a glob, brace or quoted pattern ($glob_hit) can expand to a secret file name (.env, *.tfvars, keys); name the files explicitly"
+  [ "$glob_rc" -ne 0 ] && soft_block "the secret-name check for globs could not run (exit $glob_rc); the command was not checked for it"
 fi
 # iOS signing assets (*.p8 *.p12 *.mobileprovision AuthKey_*) and Firebase / GCP service account keys
 if grep -Eq '(^|[/[:space:]"'"'"'])AuthKey_[[:alnum:]_]+|(^|[^$[:alnum:]_*-])[[:alnum:]_-]+\.(p8|p12|mobileprovision)([[:space:]"'"'"';|&)]|$)|firebase-adminsdk[^[:space:]]*\.json|[Ss]ervice-?[Aa]ccount[^[:space:]]*\.json' <<<"$cmd"; then
