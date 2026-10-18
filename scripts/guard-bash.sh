@@ -177,6 +177,11 @@ if pack_on cloudflare \
 fi
 
 # --- Changes to the harness itself (disabling the guard) (core) ---
+# Ways to write a file: a redirect, in-place editors (sed / perl / ruby -i, awk -i inplace), file commands, dd / rsync,
+# downloads to a file (curl -o / -O, wget -O), and git commands that write the working tree (checkout, restore, apply, am)
+WRITE_FILE_RE='>[[:space:]]*[^&[:space:]]|sed[[:space:]]+(-[a-zA-Z]*i|--in-place)|(perl|ruby)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-[a-zA-Z]*i|awk[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-i[[:space:]]*inplace|(^|[[:space:];&|(`])(rm|mv|cp|tee|chmod|ln|truncate|install|dd|rsync)[[:space:]]|(curl|wget)[^|;&]*[[:space:]](-[a-zA-Z]*[oO]|--output(-document)?|--remote-name)([[:space:]=]|$)'
+# git writes count only next to the path in the same segment (git checkout b && cat .claude/hooks/x is a read)
+WRITE_RE="${WRITE_FILE_RE}|git[^|;&]*[[:space:]](checkout|restore|apply|am)[[:space:]]"
 # Drop harmless redirects (>/dev/null, 2>&1) before judging writes
 cmd_nr="$(sed -E 's#[0-9]*>>?[[:space:]]*/dev/null##g; s#[0-9]*>&[0-9-]##g' <<<"$cmd")"
 # A grep / rg search pattern (the first quoted argument after options) is not a write target, so it is dropped
@@ -187,7 +192,33 @@ cmd_nr="$(perl -pe 's/((?:^|[\s;&|(])(?:grep|egrep|fgrep|rg|ag)(?:\s+-[^\s\x27"]
 # target) are dropped, and (2) a write operation and a protected path must be in the same segment, split at && / || / newline.
 # The split ignores quotes and does not split on ; or | (so sed -i 's/a/b/;s/c/d/' .githooks/x is caught).
 # Trailing backslash lines are joined first. A << inside quotes is read as a heredoc and the rest is skipped (a known gap; this is not a sandbox)
-cmd_home="$(sed -E 's#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.gitconfig([^[:alnum:]_.-]|$)#HOMEGITCONFIG\2#g' <<<"$cmd_nr" \
+# After cd / pushd, relative arguments are relative to the new directory: a copy of the command with them joined to it
+# (cd .githooks && rm pre-push -> rm .githooks/pre-push) is judged too. A cd to a variable stops the joining
+cmd_cd=""
+[[ "$cmd_nr" == *cd* ]] && cmd_cd="$(perl -0ne 'exit unless /(?:^|[;&|(\n])\s*(?:cd|pushd)(?:\s|$)/;
+  my ($d, $out) = ("", "");
+  for my $seg (split /(&&|\|\||[;|\n])/) {
+    if ($seg =~ /^(?:&&|\|\||[;|\n])$/) { $out .= $seg; next }
+    my @w = split " ", $seg;
+    if (@w && $w[0] =~ /^(?:cd|pushd)$/) {
+      my @a = @w[1 .. $#w]; shift @a while @a && $a[0] =~ /^-[LPe@]+$/;
+      my $t = @a ? $a[0] : "~"; $t =~ s/["\x27]//g;
+      if ($t =~ /[\$`]/) { $d = ""; next }
+      $d = ($t =~ m{^[/~]} || $d eq "") ? $t : "$d/$t";
+      1 while $d =~ s{(^|/)(?!\.\.(?:/|$))[^/]+/\.\.(?:/|$)}{$1};
+      $d =~ s{/+$}{}; next }
+    if ($d eq "" || !@w) { $out .= $seg; next }
+    my ($i, @r) = (0);
+    push @r, $w[$i++] while $i < @w && $w[$i] =~ /^\w+=/;
+    push @r, $w[$i++] if $i < @w;
+    for (; $i < @w; $i++) {
+      my ($p, $v) = $w[$i] =~ /^(\d*>>?|<|of=|--output=)?(.*)$/s; $p = "" unless defined $p;
+      $v = "$d/$v" if $v ne "" && $v !~ m{^[-+/~\$]};
+      push @r, "$p$v" }
+    $out .= join(" ", @r) }
+  print $out' <<<"$cmd_nr" 2>/dev/null)"
+# // in a path is one / (~/.claude//settings.json); a URL scheme (https://) is left alone
+cmd_home="$(sed -E 's#([^:/])//+#\1/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.gitconfig([^[:alnum:]_.-]|$)#HOMEGITCONFIG\2#g' <<<"$cmd_nr${cmd_cd:+$'\n'$cmd_cd}" \
   | awk "$HEREDOC_AWK" \
   | sed -e ':a' -e '/\\$/N; s/\\\n//; ta' \
   | awk '{ gsub(/&&|\|\|/, "\n"); print }')"
@@ -196,8 +227,8 @@ while IFS= read -r seg; do
   # chmod +x does not change content, so it is not a write. Arguments run up to ; & | < >.
   # A redirect (chmod +x f > .githooks/x) stays and is judged as a write
   seg_w="$(sed -E 's#(^|[[:space:];&|(`])chmod[[:space:]]+[ugoa]*\+x([[:space:]]+[^;&|<>()`[:space:]]+)*#\1#g' <<<"$seg")"
-  if grep -Eq '>[[:space:]]*[^&[:space:]]|sed[[:space:]]+(-[a-zA-Z]*i|--in-place)|(^|[[:space:];&|(`])(rm|mv|cp|tee|chmod|ln|truncate|install)[[:space:]]' <<<"$seg_w"; then
-    if grep -Eq 'HOMECLAUDE/(hooks|settings|plugins)|\.claude/settings|\.githooks|\.git/(config|hooks)|HOMEGITCONFIG|\.config/git/config' <<<"$seg_w"; then
+  if grep -Eq "$WRITE_RE" <<<"$seg_w"; then
+    if grep -Eq 'HOMECLAUDE/(hooks|settings|plugins)|\.claude/settings|\.githooks|\.git/(config|hooks)|\.git/modules/[^[:space:]]*/(config|hooks)|HOMEGITCONFIG|\.config/git/config' <<<"$seg_w"; then
       block "changing the harness (~/.claude hooks / settings / plugins, .claude/settings*, .githooks, .git/config, .git/hooks, ~/.gitconfig, ~/.config/git/config) through Bash is not allowed (chmod +x alone is fine)"
     elif grep -Eq '\.claude/(hooks|verify\.sh)' <<<"$seg_w"; then
       add_ask "changing .claude/hooks / .claude/verify.sh: confirm the user has OKed this change in chat before approving"
@@ -208,7 +239,7 @@ while IFS= read -r seg; do
 done <<<"$cmd_home"
 # ask only adds a confirmation, so look at the whole command instead of segments (catches git add .claude/hooks && git commit -m "<a@b>")
 if [ -z "$pending_ask" ] \
-   && grep -Eq '>[[:space:]]*[^&[:space:]]|sed[[:space:]]+(-[a-zA-Z]*i|--in-place)|(^|[[:space:];&|(`])(rm|mv|cp|tee|chmod|ln|truncate|install)[[:space:]]' <<<"$cmd_home" \
+   && grep -Eq "$WRITE_FILE_RE" <<<"$cmd_home" \
    && grep -Eq '\.claude/(hooks|verify\.sh)|\.github/workflows' <<<"$cmd_home"; then
   add_ask "changing .claude/hooks / .claude/verify.sh / .github/workflows: confirm the user has OKed this change in chat before approving"
 fi
@@ -455,16 +486,22 @@ fi
 # Untracked files are not in git history and cannot be restored after clean or reset --hard
 if grep -Eq "${GIT}clean([[:space:]\"']|$)" <<<"$cmd_msg" && ! grep -Eq "${GIT}clean([^|;&]*)[[:space:]](-[a-zA-Z]*n[a-zA-Z]*|--dry-run)([[:space:]]|$)" <<<"$cmd_msg"; then
   add_ask "git clean: deletes untracked files. Confirm the user has OKed this in chat before approving"
-elif grep -Eq "${GIT}(reset([^|;&]*)[[:space:]]--hard|stash[[:space:]]+(drop|clear)|branch([^|;&]*)[[:space:]]-D|checkout[[:space:]]+(-f|--force|--|\.)|switch([^|;&]*)[[:space:]](-f|--force|--discard-changes))([[:space:]\"']|$)" <<<"$cmd_msg"; then
+elif grep -Eq "${GIT}(reset([^|;&]*)[[:space:]]--hard|stash[[:space:]]+(drop|clear)|branch([^|;&]*)[[:space:]]-D|checkout[[:space:]]+(-f|--force|--|\.)|checkout([^|;&]*)[[:space:]]--|switch([^|;&]*)[[:space:]](-f|--force|--discard-changes))([[:space:]\"']|$)" <<<"$cmd_msg"; then
   add_ask "destructive git operation (reset --hard / checkout -- / stash drop / branch -D ...): loses uncommitted changes or a branch. Confirm the user has OKed this in chat before approving"
 elif grep -Eq "${GIT}restore([[:space:]\"']|$)" <<<"$cmd_msg" \
      && ! { grep -Eq "${GIT}restore([^|;&]*)[[:space:]](--staged|-S)([[:space:]]|$)" <<<"$cmd_msg" && ! grep -Eq "${GIT}restore([^|;&]*)[[:space:]](--worktree|-W)([[:space:]]|$)" <<<"$cmd_msg"; }; then
   add_ask "git restore: discards working tree changes. Confirm the user has OKed this in chat before approving"
 fi
+# Deletes whose targets come from another command (xargs rm, find -delete / -exec rm): the files cannot be listed beforehand
+if grep -Eq "${P}xargs([^|;&]*)[[:space:]]rm([[:space:]]|$)|${P}find[[:space:]][^|;&]*[[:space:]](-delete|-exec(dir)?[[:space:]]+rm)([[:space:]]|$)" <<<"$cmd_msg"; then
+  add_ask "xargs rm / find -delete / find -exec rm: deletes files chosen at run time. Confirm the user has OKed this in chat before approving"
+fi
 
 # --- Operations that change the machine, run fetched code, or delete the home directory (core) ---
-if grep -Eq "(curl|wget)([^;&]*)\|[[:space:]]*(sudo[[:space:]]+)?(ba|z|da)?sh([[:space:]\"']|$)" <<<"$cmd"; then
-  block "piping curl/wget output into a shell is not allowed (do not run code from an untrusted source)"
+# The receiving side may be a path (/bin/sh), wrapped (env / sudo -E / command), or another interpreter (python3, perl, node ...).
+# Only the stage that gets the fetched text counts; tee / cat in between pass it through unchanged (curl | jq | perl -ne reads data)
+if grep -Eq "(curl|wget)[^;&|]*(\|[[:space:]]*(sudo[[:space:]]+)?(tee|cat)([[:space:]][^;&|]*)?)*\|[[:space:]]*((sudo|env|command|exec|nohup|nice)([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*([^[:space:]|;&]*/)?((ba|z|da|k|c|tc|fi)?sh|python[0-9.]*|perl|ruby|node|deno|bun|php|lua|osascript)([[:space:]\"']|$)" <<<"$cmd"; then
+  block "piping curl/wget output into a shell or interpreter is not allowed (do not run code from an untrusted source)"
 fi
 # Forms other than a pipe: process substitution (bash <(curl ...)) and passing fetched text to bash -c / eval (bash -c "$(curl ...)").
 FETCH="[[:space:]]*(command[[:space:]]+)?([^[:space:]()]*/)?(curl|wget)[[:space:]]"
@@ -481,6 +518,12 @@ fi
 # No confirmation when every target is a build artifact or a temp directory. A variable ($dir) has unknown contents, so it is asked
 rm_targets="$(perl -ne 'while (/(?:^|[\s;&|(])rm\s+((?:-\S+\s+)*)([^;&|<>]*)/g) { my ($o, $a) = ($1, $2); next unless $o =~ /(^|\s)(-[A-Za-z]*[rR]|--recursive)/; for (split " ", $a) { s/^["\x27]|["\x27]$//g; print "$_\n" } }' <<<"$cmd_msg" 2>/dev/null)"
 if [ -n "$rm_targets" ]; then
+  # The root or the home directory anywhere in the list, after -- or long options too (rm -rf -- ~, rm --recursive /)
+  while IFS= read -r t; do
+    case "$t" in
+      /|/\*|'~'|'~/'|'~/*'|'$HOME'|'$HOME/'|'$HOME/*'|'${HOME}'|'${HOME}/'|'${HOME}/*') block "rm -r on the root or home directory is not allowed" ;;
+    esac
+  done <<<"$rm_targets"
   while IFS= read -r t; do
     [ -z "$t" ] && continue
     if grep -Eq '(^|/)\.\.(/|$)' <<<"$t" || ! grep -Eq '^(\./)?([^/]+/)*(node_modules|dist|build|out|coverage|\.next|\.nuxt|\.turbo|\.cache|\.parcel-cache|target|DerivedData|\.build|__pycache__|\.pytest_cache|\.mypy_cache|\.ruff_cache|\.tox|\.venv|venv)/?$|^/(private/)?tmp/|^/var/folders/|^(~|\$HOME|\$\{HOME\})/Library/(Caches|Developer/Xcode/DerivedData)/' <<<"$t"; then

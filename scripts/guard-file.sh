@@ -45,7 +45,7 @@ case "$tool" in
     fi
     ;;
   Edit|Write|MultiEdit|NotebookEdit)
-    if grep -Eq '\.tfvars$|(^|/)\.git/(config|config\.worktree|hooks/)|(^|/)\.git/modules/[^/]+/(config|config\.worktree|hooks/)|(^|/)\.git/worktrees/[^/]+/config\.worktree$' <<<"$path_l"; then
+    if grep -Eq '\.tfvars$|(^|/)\.git/(config|config\.worktree|hooks/)|(^|/)\.git/modules/.+/(config|config\.worktree|hooks/)|(^|/)\.git/worktrees/[^/]+/config\.worktree$' <<<"$path_l"; then
       block "editing $path is not allowed (.tfvars, .git/config, .git/hooks)"
     fi
     # The global git config can hold alias / include / core.hooksPath (the same bypasses guard-bash.sh blocks)
