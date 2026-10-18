@@ -1132,6 +1132,14 @@ GUARD_CWD="$TMPROOT/repo_main"
 check $BLOCK "git push origin 'HEAD'"
 check $BLOCK 'git push origin "@"'
 check $BLOCK 'git push origin head'
+# ブレース展開で組み立てた push 先は読めないので、確認に回す (confirm_push が無効でも)
+check $ASK   'git push origin ma{in,}'
+check $ASK   'git push origin {main,x}'
+check $ASK   "git push origin 'HEAD:'{main,x}"
+check $ASK   'git push origin $@'
+check $ASK   'git push origin "$@"'
+check $ASK   'git push origin HEAD:$*'
+check $ALLOW 'git push origin feat/x -o "ci.{a,b}"'
 check $ALLOW 'GIT_DIR=../repo_feat/.git git push origin HEAD'
 check $ALLOW 'cd ../repo_feat && git push'
 # 文字列の中の cd、別のコマンドの GIT_DIR=、失敗しうる cd は、push の場所を変えない (main のまま)
