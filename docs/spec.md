@@ -110,7 +110,7 @@ Glob はファイル名を返すだけなので対象にしない。
 
 ### MCP のガード
 
-ツール名に削除・公開・秘密の変更を表す語 (`delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`deploy`、`publish`、`rollback`、`secret`) か、ブランチへの書き込みを表す名前 (`merge_pull_request`、`merge_branch`、`push_files`、`push_branch`、`force_push`) があれば ask。SQL を受けるツール (`query`、`sql`、`execute`、`exec`) で変更系の文なら ask。
+ツール名に削除・公開・秘密の変更を表す語 (`delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`erase`、`deploy`、`publish`、`unpublish`、`rollback`、`secret`) か、ブランチへの書き込みを表す名前 (`merge_pull_request`、`merge_branch`、`push_files`、`push_branch`、`force_push`、ブランチに直接コミットする `create_or_update_file`、`update_file`、`create_commit`、ref を動かす `update_ref`) があれば ask。SQL を受けるツール (`query`、`sql`、`execute`、`exec`) で変更系の文 (`drop`、`delete`、`truncate`、`alter`、`update`、`insert`、`replace`、`create`、`merge`、`grant`、`revoke`、`rename`、`upsert`、`copy`) なら ask。`/* */` と `--` のコメントは外し、語の直後が空白・引用符・括弧の形も見る。`jq` か `perl` が無いときは、MCP のツールをすべて block する。
 
 ### パック
 

@@ -52,7 +52,7 @@ Plugins cannot ship permission rules, so these live in a hook.
 
 ### MCP tools (`guard-mcp.sh`)
 
-A tool whose name contains `delete`, `destroy`, `drop`, `purge`, `remove`, `truncate`, `wipe`, `deploy`, `publish`, `rollback` or `secret` asks, and so do `merge_pull_request`, `merge_branch`, `push_files`, `push_branch` and `force_push`. Tools named `query`, `sql`, `execute` or `exec` ask when the input is a data-changing statement.
+A tool whose name contains `delete`, `destroy`, `drop`, `purge`, `remove`, `truncate`, `wipe`, `erase`, `deploy`, `publish`, `unpublish`, `rollback` or `secret` asks, and so do `merge_pull_request`, `merge_branch`, `push_files`, `push_branch`, `force_push`, `create_or_update_file`, `update_file`, `create_commit` and `update_ref`. Tools named `query`, `sql`, `execute` or `exec` ask when the input is a data-changing statement (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `MERGE`, `GRANT`, `REVOKE`, `COPY` and similar; comments are removed first). Without `jq` or `perl` the MCP guard blocks every MCP call.
 
 ### Packs
 

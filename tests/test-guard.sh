@@ -624,6 +624,33 @@ check_mcp $ASK   'mcp__gh__merge_pull_request'
 check_mcp $ASK   'mcp__gh__push_files'
 check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DELETE\nFROM users"}'
 check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DROP\tTABLE x"}'
+# ブランチに直接コミットする GitHub のツール、unpublish / erase
+check_mcp $ASK   'mcp__github__create_or_update_file' '{"branch":"main","path":"a","content":"x"}'
+check_mcp $ASK   'mcp__github__update_file'
+check_mcp $ASK   'mcp__git__create_commit'
+check_mcp $ASK   'mcp__git__update_ref'
+check_mcp $ASK   'mcp__notion__unpublish_page'
+check_mcp $ASK   'mcp__s3__erase_bucket'
+check_mcp $ALLOW 'mcp__github__get_file_contents'
+check_mcp $ALLOW 'mcp__github__get_commit'
+# SQL: -- のコメントを挟む形、識別子を引用符で包む形、ほかの変更系の文
+check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DELETE--x\nFROM users"}'
+check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"UPDATE\"users\"SET a=1"}'
+check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"INSERT(a) VALUES (1)"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"GRANT ALL ON t TO u"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"REVOKE ALL ON t FROM u"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET a = 1"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"ALTER TABLE t RENAME TO u"}'
+# -- inside a string is not a comment, so the text is read with -- kept as well (a comment that names a keyword is asked)
+check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT '--'; DELETE FROM t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT a -- update later\nFROM t"}'
+check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT granted FROM perms"}'
+# Without perl the SQL check cannot run, so the MCP guard stops everything and says why
+nop="$TMPROOT/noperl"; mkdir -p "$nop"
+for c in bash jq sed grep tr cat; do ln -sf "$(command -v "$c")" "$nop/$c"; done
+n=$((n + 1))
+out="$(echo '{"tool_name":"mcp__db__query","tool_input":{"sql":"DELETE FROM t"}}' | PATH="$nop" "$nop/bash" "$HOOKS/guard-mcp.sh" 2>&1)"; rc=$?
+if [ "$rc" != 2 ] || ! grep -q "'perl' was not found" <<<"$out"; then echo "FAIL: guard-mcp.sh does not stop when perl is missing (exit code $rc)"; fail=1; fi
 
 # Without jq the guards stop everything and say why (they never let calls through blindly)
 for g in guard-bash.sh guard-mcp.sh guard-file.sh; do
