@@ -77,6 +77,8 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 `/code-guard:doc-code-consistency` は、文書 (README、`docs/`、`CLAUDE.md`、`CHANGELOG`、コメント) が実装と合っているかを確かめ、矛盾・陳腐化・記載漏れを file:line の証拠付きで報告します。ふだんは読むだけで、ファイルを直すのは、指摘を直すよう頼んだときだけです。PR の前にブランチの差分に対して流すか、確かめたい文書や機能を指定します。
 
+`doc_check_before_pr` を有効にすると、スキルを始めた時点のコミットを記録します (数えるのは同梱のこのスキルだけで、同じ名前の個人のスキルは数えません)。PR にするブランチの先頭がそのコミットでなければ (照合がまだ無い、またはその後にコミットが増えた)、PR の作成を block します。記録は照合を始めた時点で、結果によらず残るので、強制ではなく思い出させる仕組みです。
+
 ## トークンの消費
 
 コンテキストを食わないように作っています。
@@ -94,6 +96,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 | `protected_branches` | `main`、`master` | push を block するブランチ |
 | `confirm_push` | `true` | 作業ブランチへの push に確認を出す |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | パックの有効・無効 |
+| `doc_check_before_pr` | `false` | `/code-guard:doc-code-consistency` がブランチの先頭を照合するまで、`gh pr create` (と MCP の `create_pull_request`) を block する |
 | `verify_max_retry` | `3` | 検証ループの 1 回あたりのやり直しの回数 (1〜10) |
 
 プロジェクトごとの上書きはできません。
@@ -126,6 +129,7 @@ Claude Code 2.1.293 で開発しています。フックには `onFailure: "bloc
 ```bash
 bash tests/test-guard.sh    # ガード、パック、設定 (1 分ほど)
 bash tests/test-verify.sh   # 検証ループ
+bash tests/test-doc-check.sh  # PR の前の照合
 ```
 
 ガードの判定を変えるときは、先に `tests/test-guard.sh` にケースを足します。

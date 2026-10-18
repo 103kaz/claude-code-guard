@@ -77,6 +77,8 @@ Create the script with `/code-guard:setup-verify`. It looks at your build files 
 
 `/code-guard:doc-code-consistency` checks that the documentation (README, `docs/`, `CLAUDE.md`, `CHANGELOG`, comments) matches the code, and reports contradictions, stale text and missing items with file:line evidence. It only reads, and changes files only when you ask it to fix a finding. Run it before a pull request on the branch diff, or name a document or feature to check.
 
+With `doc_check_before_pr` on, the plugin records the commit when the skill starts (only this bundled skill counts, not a personal skill of the same name) and blocks creating a pull request whose head is not that commit (no check yet, or commits added after it). The record is written when the check starts, whatever it finds, so it reminds rather than enforces.
+
 ## Token cost
 
 The plugin is built to stay out of the context window:
@@ -94,6 +96,7 @@ Change them in the `/plugin` settings screen. They are read from user and manage
 | `protected_branches` | `main`, `master` | branches push is blocked for |
 | `confirm_push` | `true` | ask before pushing a work branch |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | enable the pack |
+| `doc_check_before_pr` | `false` | block `gh pr create` (and an MCP `create_pull_request`) until `/code-guard:doc-code-consistency` has checked the branch head |
 | `verify_max_retry` | `3` | verify loop retries per turn (1-10) |
 
 Per-project overrides are not supported.
@@ -126,6 +129,7 @@ Developed against Claude Code 2.1.293. The hooks set `onFailure: "block"`, which
 ```bash
 bash tests/test-guard.sh    # guards, packs, settings (about a minute)
 bash tests/test-verify.sh   # verify loop
+bash tests/test-doc-check.sh  # docs check before a PR
 ```
 
 When you change a guard decision, add cases to `tests/test-guard.sh` first.

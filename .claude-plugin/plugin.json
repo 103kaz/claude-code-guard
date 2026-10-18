@@ -43,6 +43,12 @@
       "description": "Guard wrangler deploy / delete / secret changes",
       "default": true
     },
+    "doc_check_before_pr": {
+      "type": "boolean",
+      "title": "Docs check before a PR",
+      "description": "Block gh pr create until /code-guard:doc-code-consistency has checked the branch head",
+      "default": false
+    },
     "verify_max_retry": {
       "type": "number",
       "title": "Verify retries",
