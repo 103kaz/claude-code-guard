@@ -60,7 +60,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 | パック | 判定 |
 |---|---|
-| `github` | block: `gh secret set/delete`、`gh variable delete`、`gh repo delete`、`gh release delete`、`gh pr merge --admin/--auto`、`gh api` の変更系 (リポジトリ設定の経路への単独の呼び出しは ask)。ask: `gh pr merge`、`gh workflow run` |
+| `github` | block: `gh secret set/delete`、`gh variable delete`、`gh repo delete`、`gh release delete`、`gh pr merge --admin/--auto`、`gh repo edit --visibility`、`gh api` の変更系 (リポジトリ設定の経路への単独の呼び出しは ask)。ask: `gh pr merge`、`gh workflow run`、`gh release create`、`gh gist create` |
 | `terraform` | block: `destroy`、`import`、`taint`、`untaint`、`force-unlock`、state の変更、plan と apply を 1 コマンドで、`-auto-approve` など。ask: 保存した plan ファイルの `apply`。`.tf` を Edit / Write した後に `terraform fmt` |
 | `gcp` | block: ディスク・インスタンス・プロジェクト・ストレージ・SQL インスタンスの削除、`gsutil rm/rb`、Secret Manager の値とアクセストークンの出力 |
 | `cloudflare` | block: `wrangler` の deploy / delete / rollback / secret の変更 |
@@ -69,7 +69,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 ファイルを変えたまま応答を終えようとしたとき、プロジェクトに `.claude/verify.sh` があれば Stop フックが走らせます。失敗したら出力の末尾 80 行を Claude に返します (exit 2)。1 回の中で `verify_max_retry` 回 (既定 3) 失敗したら、ユーザーに知らせて通します。`.claude/verify.sh` が無ければ何もしません。
 
-「変わったか」は、プロンプトを送った時点の HEAD、追跡中のファイルの差分、追跡外のファイルの指紋と比べます。回の前からある変更だけでは走りません。
+「変わったか」は、プロンプトを送った時点の HEAD、追跡中のファイルの差分、追跡外のファイルの指紋と比べます。回の前からある変更だけでは走りません。git の外では、プロンプトを送った後に変わったファイルがあれば走ります。
 
 `/code-guard:setup-verify` で雛形を作れます。ビルドの設定を見て速い lint とテストを提案し、同意を得てから書きます。
 

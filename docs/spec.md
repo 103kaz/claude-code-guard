@@ -88,7 +88,7 @@ jq が無いとフックの入力を読めない。そのときは、そのフ�
 | push の形 | `--no-verify`、`--mirror`、`--delete` (`-d` と `:` で始まる refspec を含む)、`--prune`、`--all` | force push (`+` で始まる refspec を含む) |
 | フックの回避 | `core.hooksPath` の変更、`git -c` と `--config-env`、`GIT_CONFIG_*`、alias と include の設定、core / alias / include のセクションの削除と名前の変更 (`--remove-section` と新しい書式の `remove-section`)、`HOME=` / `XDG_CONFIG_HOME=` を変えて git を動かすこと、`~/.gitconfig` と `~/.config/git/config` の書き換え、commit / merge / rebase などの `--no-verify` と `commit -n` | |
 | 機密値 | `.env` と `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産 (`*.p8`、`*.p12`、`*.mobileprovision`、`AuthKey_*`)、サービスアカウント鍵、CLI の認証情報 (`~/.aws`、`~/.config/gcloud`、gh のトークン、`~/.kube`、`~/.docker`、`~/.netrc` など)、git の資格情報 (`~/.git-credentials`、`~/.config/git/credentials`、`git credential fill` / `get`)、キーチェーンの値。名前の直前がリダイレクト (`<`)、`rev:`、`--opt=` の形と、展開するとこれらの名前になるグロブやブレース展開 (`.en?`、`.e{n,x}v`、`--include=*.tfvars`) も含む。`*`、`*.*`、`.*` だけの語は判定しない | |
-| ハーネス | `~/.claude` の settings とフック、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` (`.git/modules/` の下の入れ子のサブモジュールも)、プラグインの置き場所 (`~/.claude/plugins`) の Bash での書き換え。書き換えに数えるのは、リダイレクト、`sed` / `perl` / `ruby` の `-i`、`awk -i inplace`、`rm` / `mv` / `cp` / `tee` / `chmod` (`+x` だけは除く) / `ln` / `truncate` / `install` / `dd` / `rsync`、`curl -o` / `-O`、`wget -O`、`git checkout` / `restore` / `apply` / `am`。`cd` / `pushd` の後の相対パスは、移った先のパスとして読む。パスの中の `//` は `/` と同じに扱う | プロジェクトの `.claude/hooks` と `.claude/verify.sh` の Bash での書き換え |
+| ハーネス | `~/.claude` の settings とフック、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` (`.git/modules/` の下の入れ子のサブモジュールも)、プラグインの置き場所 (`~/.claude/plugins`) の Bash での書き換え。書き換えに数えるのは、リダイレクト、`sed` / `perl` / `ruby` の `-i`、`awk -i inplace`、`rm` / `mv` / `cp` / `tee` / `chmod` (`+x` だけは除く) / `ln` / `truncate` / `install` / `dd` / `rsync`、`curl -o` / `-O`、`wget -O`、`git checkout` / `restore` / `apply` / `am`。`cd` / `pushd` の後の相対パスは、移った先のパスとして読む。パスの中の `//` は `/` と同じに扱う | プロジェクトの `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
 | 取得したコードの実行 | `curl` / `wget` の出力をシェル (`/bin/sh` のようなパス、`env` / `sudo -E` / `command` を挟む形を含む) やインタプリタ (`python`、`perl`、`ruby`、`node`、`deno`、`bun`、`php`、`lua`、`osascript`) に渡すパイプ。シェルはパイプの何段後でも、インタプリタは curl のすぐ次の段 (間に `tee` / `cat` だけを挟む形を含む。`\| python3 -m json.tool` も含む) か、後ろの段で標準入力からプログラムを読む形 (引数なしか `-`) | プロセス置換、`bash -c "$(curl ...)"`、`eval "$(curl ...)"` |
 | 消す操作 | ルートやホームを対象にした `rm -r` (対象のどの位置でも。`--` や `--recursive` の後も) | ビルドの生成物でないディレクトリの `rm -r`、`git clean`、`reset --hard`、`restore`、`checkout --` と `checkout <rev> -- <path>`、`stash drop`、`branch -D`、`xargs rm`、`find -delete` と `find -exec rm` |
 | マシンの設定 | | `sudo`、`launchctl` の登録、`crontab` (`-l` を除く)、`defaults write` / `delete` |
@@ -118,7 +118,7 @@ Glob はファイル名を返すだけなので対象にしない。
 
 | パック | 判定 |
 |---|---|
-| `github` | block: `gh secret set/delete`、`gh variable delete`、`gh repo delete`、`gh release delete`、`gh pr merge --admin/--auto`、`gh api` の変更系 (リポジトリ設定の経路への単独の呼び出しは ask)。ask: `gh pr merge`、`gh workflow run` |
+| `github` | block: `gh secret set/delete`、`gh variable delete`、`gh repo delete`、`gh release delete`、`gh pr merge --admin/--auto`、`gh repo edit --visibility` (`gh api` 経由の公開範囲の変更を外しているのと揃える)、`gh api` の変更系 (リポジトリ設定の経路への単独の呼び出しは ask)。ask: `gh pr merge`、`gh workflow run`、`gh release create`、`gh gist create` |
 | `terraform` | block: `destroy`、`import`、`taint`、`untaint`、`force-unlock`、`state` の変更、plan と apply を 1 コマンドで、apply の `-auto-approve` など。ask: 保存した plan ファイルを指定した `apply`。Edit / Write の後に `terraform fmt` |
 | `gcp` | block: ディスク・インスタンス・プロジェクト・ストレージ・SQL インスタンスの削除、`gsutil rm/rb`、Secret Manager の値とアクセストークンの出力 |
 | `cloudflare` | block: `wrangler` の deploy / delete / rollback / secret の変更 |
@@ -137,7 +137,7 @@ Glob はファイル名を返すだけなので対象にしない。
 |---|---|
 | 走る条件 | プロジェクトに `.claude/verify.sh` があり、回の始め (UserPromptSubmit) から作業ツリーが変わっている (回の中のコミットを含む) |
 | `verify.sh` が無いとき | 何もしない。メッセージも出さない |
-| 変わったかの判定 | HEAD、追跡中のファイルの差分、追跡外のファイルの名前と中身をまとめた指紋で比べる |
+| 変わったかの判定 | HEAD、追跡中のファイルの差分、追跡外のファイルの名前と中身をまとめた指紋で比べる。コミットがまだ無いリポジトリでは、HEAD との差分の代わりに index と作業ツリーの差分を使う。git の外では、回の始めに置いた印のファイルより後に変わったファイルがあるかで決める |
 | 失敗したとき | exit 2 で止め、出力の末尾 80 行を Claude に返す |
 | やり直しの回数 | `userConfig` の `verify_max_retry` (既定 3)。最後の回では、直せなければ報告して終えるよう伝える。超えたらユーザーに systemMessage で知らせて通す |
 | 時間切れ | 600 秒 |
@@ -243,7 +243,7 @@ BLOCKED by code-guard: <reason>
 This is a policy block, not a hook failure. Do not retry it another way (another command, a script, python). Tell the user why it was blocked and give them the command to run themselves.
 ```
 
-理由の例:
+理由の例 (書き方の例。実際の文面はスクリプトにある):
 
 | 判定 | 文面 |
 |---|---|
@@ -257,7 +257,7 @@ This is a policy block, not a hook failure. Do not retry it another way (another
 | 依存が無い | `jq was not found, so code-guard cannot read this tool call and blocks it. Install jq (macOS: brew install jq, Debian/Ubuntu: apt install jq).` |
 | terraform | `terraform apply must name a saved plan file: terraform apply <planfile>.` |
 
-ask (`permissionDecisionReason`、確認の画面でユーザーが読む)。何が起きるかと、どういうときに承認するかを書く。
+ask (`permissionDecisionReason`、確認の画面でユーザーが読む)。何が起きるかと、どういうときに承認するかを書く。下の表も書き方の例で、実際の文面はスクリプトにある。
 
 | 判定 | 文面 |
 |---|---|

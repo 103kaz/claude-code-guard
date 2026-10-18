@@ -425,6 +425,13 @@ fi
 if grep -Eq 'gh([^|;&]*)[[:space:]](secret[[:space:]]+(set|delete)|variable[[:space:]]+delete|repo[[:space:]]+delete|release[[:space:]]+delete)' <<<"$cmd"; then
   block "changing GitHub secrets and deleting repos / releases are not allowed"
 fi
+# Visibility can make a private repository public (gh api to the same setting is not allowed either)
+if grep -Eq 'gh([^|;&]*)[[:space:]]repo[[:space:]]+edit([^|;&]*)[[:space:]]--visibility([[:space:]=]|$)' <<<"$cmd"; then
+  block "changing repository visibility is not allowed (it can make a private repository public)"
+fi
+if grep -Eq 'gh([^|;&]*)[[:space:]](release|gist)[[:space:]]+create([[:space:]]|$)' <<<"$cmd"; then
+  add_ask "gh release create / gh gist create: publishes content. Confirm the user has OKed this in chat before approving"
+fi
 # Manual workflow runs are allowed only with approval, after the user OKed them in chat
 if grep -Eq 'gh([^|;&]*)[[:space:]]workflow[[:space:]]+run' <<<"$cmd"; then
   add_ask "gh workflow run: confirm the user has OKed this run in chat before approving"

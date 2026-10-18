@@ -163,5 +163,32 @@ run_hook w1
 [ "$RC" = 0 ] && grep -q 'systemMessage' <<<"$OUT" || ng "an unwritable state directory kept stopping (rc=$RC)"
 EXTRA_ENV=""
 
+# Outside git: run only when a file changed since the mark (not on every stop)
+git_repo="$repo"
+repo="$tmp/plain"
+mkdir -p "$repo/.claude"
+set_verify 'exit 1'
+echo a >"$repo/a.txt"
+run_hook ng1 mark; run_hook ng1
+[ "$RC" = 0 ] || ng "ran verification outside git with no change (rc=$RC)"
+sleep 1; echo b >>"$repo/a.txt"
+run_hook ng1
+[ "$RC" = 2 ] || ng "did not verify a change outside git (rc=$RC)"
+# Without a mark outside git, run (nothing to compare with)
+run_hook ng2
+[ "$RC" = 2 ] || ng "did not verify outside git without a mark (rc=$RC)"
+
+# A repository with no commit yet: a change to a staged file is seen
+repo="$tmp/nocommit"
+git init -q -b main "$repo"
+mkdir -p "$repo/.claude"
+set_verify 'exit 1'
+echo a >"$repo/s.txt"; git -C "$repo" add -A
+run_hook nc1 mark
+echo b >"$repo/s.txt"; git -C "$repo" add -A
+run_hook nc1
+[ "$RC" = 2 ] || ng "did not verify a re-staged change in a repository with no commit (rc=$RC)"
+repo="$git_repo"
+
 if [ "$fail" = 0 ]; then echo "all $n verify loop checks passed"; fi
 exit "$fail"

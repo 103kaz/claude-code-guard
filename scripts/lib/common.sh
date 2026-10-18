@@ -19,7 +19,7 @@ need_cmd() {
 # block <reason>: stop the operation (exit 2) and return the reason to Claude.
 block() {
   echo "BLOCKED by code-guard: $1" >&2
-  echo "Do not look for a workaround. Tell the user why, and show the command they can run themselves." >&2
+  echo "This is a policy block, not a hook failure. Do not retry it another way (another command, a script, python). Tell the user why it was blocked and give them the command to run themselves." >&2
   exit 2
 }
 

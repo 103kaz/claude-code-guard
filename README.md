@@ -60,7 +60,7 @@ On by default. Turn one off when its policy does not fit how you work. Secret re
 
 | Pack | Decisions |
 |---|---|
-| `github` | block: `gh secret set/delete`, `gh variable delete`, `gh repo delete`, `gh release delete`, `gh pr merge --admin/--auto`, mutating `gh api` (a lone call to a repository-settings path asks). ask: `gh pr merge`, `gh workflow run` |
+| `github` | block: `gh secret set/delete`, `gh variable delete`, `gh repo delete`, `gh release delete`, `gh pr merge --admin/--auto`, `gh repo edit --visibility`, mutating `gh api` (a lone call to a repository-settings path asks). ask: `gh pr merge`, `gh workflow run`, `gh release create`, `gh gist create` |
 | `terraform` | block: `destroy`, `import`, `taint`, `untaint`, `force-unlock`, state changes, plan + apply in one command, `-auto-approve` and similar. ask: `apply` of a saved plan file. `terraform fmt` runs after Edit / Write of `.tf` files |
 | `gcp` | block: deleting disks, instances, projects, storage, SQL instances, `gsutil rm/rb`, Secret Manager values and access tokens |
 | `cloudflare` | block: `wrangler` deploy / delete / rollback / secret changes |
@@ -69,7 +69,7 @@ On by default. Turn one off when its policy does not fit how you work. Secret re
 
 When files changed during a turn and the project has `.claude/verify.sh`, the Stop hook runs it. On failure the last 80 lines of output go back to Claude (exit 2). After `verify_max_retry` failures in one turn (default 3) the user is told and the stop passes. With no `.claude/verify.sh` nothing happens.
 
-"Changed" compares a fingerprint of HEAD, the tracked diff and the untracked files against the one taken when the prompt was submitted, so changes that were already there do not trigger it.
+"Changed" compares a fingerprint of HEAD, the tracked diff and the untracked files against the one taken when the prompt was submitted, so changes that were already there do not trigger it. Outside git, a file modified after the prompt was submitted counts.
 
 Create the script with `/code-guard:setup-verify`. It looks at your build files and proposes a fast lint + test script, and writes it only after you agree.
 
