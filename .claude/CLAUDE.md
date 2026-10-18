@@ -20,4 +20,4 @@ bash tests/test-doc-check.sh   # 開発用のフック (.claude/hooks/doc-check.
 - 変更はブランチを切って PR にする。main へ直接 push しない (空のリモートへの初回 push だけ例外)。
 - タイトルと本文は日本語、`feat:` `fix:` などのプレフィックスを付ける。
 - PR を作る前に doc-code-consistency スキルで、ブランチの差分の文書が実装と合っているかを確かめる。範囲は、差分の変更行に含まれる主張と、差分で変えた実装に触れている既存の記述。食い違いを直したら確かめ直す。
-  開発用のフック (`.claude/hooks/doc-check.sh`) が、スキルを実行した時点の HEAD を記録する。記録が無いか、その後にコミットが増えていると、`gh pr create` を止める。
+  開発用のフック (`.claude/hooks/doc-check.sh`) が、スキルを実行した時点の HEAD を記録する。記録が無いか、PR にするブランチの先頭が記録と違うと (その後にコミットが増えたときなど)、`gh pr create` と MCP の `create_pull_request` を止める。
