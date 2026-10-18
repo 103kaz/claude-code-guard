@@ -325,9 +325,10 @@ wild_hit="$(PROT="$PROTECTED_LIST" perl -ne 'next unless /\bgit\b[^;&|\n]*?\spus
     (my $re = quotemeta $dst) =~ s/\\\*/.*/g;
     for my $b (split /, /, $ENV{PROT}) { if ($b =~ /^$re$/) { print $r; exit } } }' <<<"$cmd_refspec" 2>/dev/null)"
 [ -n "$wild_hit" ] && block "git push with a wildcard refspec that can reach a protected branch ($wild_hit) is not allowed"
-# Brace expansion builds the refspec in the shell (ma{in,} is main), so the target cannot be read: ask
-if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]][^[:space:]]*\{[^[:space:]]*,[^[:space:]]*\}" <<<"$cmd_refspec"; then
-  soft_block "git push with brace expansion in an argument: the push target cannot be read"
+# Brace expansion (ma{in,} is main) and the positional parameters ($@, $*) build the refspec in the shell, so the
+# target cannot be read: ask
+if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]([^[:space:]]*\{[^[:space:]]*,[^[:space:]]*\}|[^[:space:]]*\\\$[@*])" <<<"$cmd_refspec"; then
+  soft_block "git push with brace expansion or \$@ / \$* in an argument: the push target cannot be read"
 fi
 if grep -Eq "${GIT_PUSH}([[:space:]\"';&|)]|$)" <<<"$cmd_msg"; then
   # Is the push target a protected branch: named in the refspec, or on a protected branch with no refspec / HEAD (git push, git push origin HEAD)
