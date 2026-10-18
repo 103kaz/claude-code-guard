@@ -224,7 +224,7 @@ README の先頭近くに書く。
 ## 対象外 (v1)
 
 - 運用ルール (PR の書き方、コミットメッセージ、文章の方針)
-- レビューのスキル (`adversarial-review`、`doc-code-consistency`) と `/review-loop`、`/retro`、`/address-comments`
+- コードレビューのスキル (`adversarial-review`) と `/review-loop`、`/retro`、`/address-comments`。文書と実装の照合 (`doc-code-consistency`) は同梱する
 - pre-push の gitleaks
 - サンドボックスの設定 (README の例だけ)
 - Windows
