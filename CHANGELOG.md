@@ -10,6 +10,7 @@
 - Heredoc bodies are treated as data unless the command contains a known interpreter (`bash`, `sh`, `eval`, `python` and similar). A body run by another program (`ssh host <<EOF`, `ksh`, `./x.sh` after writing it) is not asked.
 - Brace expansion and `$@` in a `git push` argument (`ma{in,}`, `{main,x}`) are not read: a push to a protected branch written that way is asked, not blocked.
 - A command longer than 100000 characters is asked without being read.
+- A word that is only `*`, `*.*` or `.*` is not matched against secret names (`cat *` in a directory with `prod.tfvars` passes).
 - When a grep or rg is in the command, quoted strings without a slash are not inspected for `*.pem` / `*.key` (`grep -rn foo . ; cat "server.key"` passes).
 - `cat -- -m "<file>"`: a value after `--` that follows a message flag is treated as message text.
 - `gh api -X Delete` written in mixed case is not recognized as a mutating method.

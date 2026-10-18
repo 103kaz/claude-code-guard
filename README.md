@@ -33,13 +33,13 @@ Each decision is one of: **block** (exit 2, cannot be approved), **ask** (a conf
 | Protected branches | push to a protected branch (a bare `git push` on one, `heads/main`, and a repository reached through `cd` or `GIT_DIR=` included), a lone `:` or a wildcard refspec | first push to an empty remote |
 | Push shape | `--no-verify`, `--mirror`, `--delete` / `-d` / `:ref`, `--prune`, `--all` | force push (`+ref` included), every work-branch push when `confirm_push` is on |
 | Hook bypass | `core.hooksPath`, `git -c`, `--config-env`, `GIT_CONFIG_*`, alias / include settings, removing the core / alias / include section, git with `HOME=` / `XDG_CONFIG_HOME=`, writes to `~/.gitconfig` / `~/.config/git/config`, `--no-verify` on commit / merge (`commit -n`) | |
-| Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, keychain values | |
-| Harness | Bash writes to `~/.claude` settings / hooks / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks` | Bash writes to `.claude/hooks`, `.claude/verify.sh`, `.github/workflows` |
-| Fetched code | `curl` / `wget` piped to a shell | process substitution, `bash -c "$(curl ...)"`, `eval` |
-| Deleting | `rm -r` on `/` or `~` | `rm -r` outside build directories, `git clean`, `reset --hard`, `restore`, `checkout --`, `stash drop`, `branch -D` |
+| Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, git credentials (`~/.git-credentials`, `git credential fill`), keychain values. Names after `<`, `rev:` and `--opt=`, and globs or braces that expand to one (`.en?`, `.e{n,x}v`) are included | |
+| Harness | Bash writes to `~/.claude` settings / hooks / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks` (submodules under `.git/modules/` included). Writes are redirects, `sed` / `perl` / `ruby -i`, `awk -i inplace`, file commands, `dd`, `rsync`, `curl -o`, `wget -O`, and `git checkout` / `restore` / `apply` / `am`; relative paths after `cd` count | Bash writes to `.claude/hooks`, `.claude/verify.sh`, `.github/workflows` |
+| Fetched code | `curl` / `wget` piped to a shell or interpreter (`/bin/sh`, `env bash`, `python3`, `perl`, `node` ...) | process substitution, `bash -c "$(curl ...)"`, `eval` |
+| Deleting | `rm -r` on `/` or `~` (after `--` and long options too) | `rm -r` outside build directories, `git clean`, `reset --hard`, `restore`, `checkout [<rev>] --`, `stash drop`, `branch -D`, `xargs rm`, `find -delete` / `-exec rm` |
 | Machine settings | | `sudo`, `launchctl` registration, `crontab`, `defaults write` |
 
-Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar.
+Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar. A `$(...)` or backtick inside a double-quoted value or an unquoted heredoc runs, so it is judged.
 
 ### File tools (`guard-file.sh`)
 
@@ -52,7 +52,7 @@ Plugins cannot ship permission rules, so these live in a hook.
 
 ### MCP tools (`guard-mcp.sh`)
 
-A tool whose name contains `delete`, `destroy`, `drop`, `purge`, `remove`, `truncate`, `wipe`, `deploy`, `publish`, `rollback` or `secret` asks, and so do `merge_pull_request`, `merge_branch`, `push_files`, `push_branch` and `force_push`. Tools named `query`, `sql`, `execute` or `exec` ask when the input is a data-changing statement.
+A tool whose name contains `delete`, `destroy`, `drop`, `purge`, `remove`, `truncate`, `wipe`, `erase`, `deploy`, `publish`, `unpublish`, `rollback` or `secret` asks, and so do `merge_pull_request`, `merge_branch`, `push_files`, `push_branch`, `force_push`, `create_or_update_file`, `update_file`, `create_commit` and `update_ref`. Tools named `query`, `sql`, `execute` or `exec` ask when the input is a data-changing statement (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `MERGE`, `GRANT`, `REVOKE`, `COPY` and similar; comments are removed first). Without `jq` or `perl` the MCP guard blocks every MCP call.
 
 ### Packs
 
@@ -60,7 +60,7 @@ On by default. Turn one off when its policy does not fit how you work. Secret re
 
 | Pack | Decisions |
 |---|---|
-| `github` | block: `gh secret set/delete`, `gh variable delete`, `gh repo delete`, `gh release delete`, `gh pr merge --admin/--auto`, mutating `gh api` (a lone call to a repository-settings path asks). ask: `gh pr merge`, `gh workflow run` |
+| `github` | block: `gh secret set/delete`, `gh variable delete`, `gh repo delete`, `gh release delete`, `gh pr merge --admin/--auto`, `gh repo edit --visibility`, mutating `gh api` (a lone call to a repository-settings path asks). ask: `gh pr merge`, `gh workflow run`, `gh release create`, `gh gist create` |
 | `terraform` | block: `destroy`, `import`, `taint`, `untaint`, `force-unlock`, state changes, plan + apply in one command, `-auto-approve` and similar. ask: `apply` of a saved plan file. `terraform fmt` runs after Edit / Write of `.tf` files |
 | `gcp` | block: deleting disks, instances, projects, storage, SQL instances, `gsutil rm/rb`, Secret Manager values and access tokens |
 | `cloudflare` | block: `wrangler` deploy / delete / rollback / secret changes |
@@ -69,7 +69,7 @@ On by default. Turn one off when its policy does not fit how you work. Secret re
 
 When files changed during a turn and the project has `.claude/verify.sh`, the Stop hook runs it. On failure the last 80 lines of output go back to Claude (exit 2). After `verify_max_retry` failures in one turn (default 3) the user is told and the stop passes. With no `.claude/verify.sh` nothing happens.
 
-"Changed" compares a fingerprint of HEAD, the tracked diff and the untracked files against the one taken when the prompt was submitted, so changes that were already there do not trigger it.
+"Changed" compares a fingerprint of HEAD, the tracked diff and the untracked files against the one taken when the prompt was submitted, so changes that were already there do not trigger it. Outside git, a file modified, renamed or deleted after the prompt was submitted counts.
 
 Create the script with `/code-guard:setup-verify`. It looks at your build files and proposes a fast lint + test script, and writes it only after you agree.
 

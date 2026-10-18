@@ -5,7 +5,9 @@
 #                         On failure, exit 2 with the output on stderr so Claude fixes it
 #
 # - "Changed" compares a fingerprint of HEAD, tracked diffs and untracked files. Commits made in the turn count;
-#   changes that were already there (not made by Claude) do not. Without a mark, run when the tree has changes
+#   changes that were already there (not made by Claude) do not. Without a mark, run when the tree has changes.
+#   Outside git, a file modified after the mark, or a change in the list of files (a rename, a delete), counts;
+#   without a mark it runs
 # - Stops at most VERIFY_MAX_RETRY times in one turn (userConfig verify_max_retry, default 3). The last round tells Claude to
 #   report to the user if it cannot fix it. If it still fails the user is told through systemMessage and the stop passes
 # - No .claude/verify.sh: do nothing, say nothing
@@ -38,13 +40,22 @@ in_git() { git rev-parse --git-dir >/dev/null 2>&1; }
 fingerprint() {
   {
     git rev-parse -q --verify HEAD 2>/dev/null
-    git diff HEAD --binary 2>/dev/null || git diff --binary 2>/dev/null
+    # With no commit yet there is no HEAD to diff against: take the index and the working tree separately
+    if git rev-parse -q --verify HEAD >/dev/null 2>&1; then
+      git diff HEAD --binary 2>/dev/null
+    else
+      git diff --cached --binary 2>/dev/null
+      git diff --binary 2>/dev/null
+    fi
     git ls-files -o --exclude-standard -z 2>/dev/null | while IFS= read -r -d '' f; do
       printf '%s ' "$f"
       git hash-object -- "$f" 2>/dev/null
     done
   } | git hash-object --stdin
 }
+
+# Checksum of the names of the files under the project (outside git)
+file_list_sum() { find . -type f -not -path './.git/*' 2>/dev/null | LC_ALL=C sort | cksum; }
 
 # Notice shown to the user (not passed to Claude)
 system_message() {
@@ -57,7 +68,8 @@ system_message() {
 
 if [ "$mode" = mark ]; then
   rm -f "$count_file"
-  if in_git; then fingerprint >"$mark_file"; else rm -f "$mark_file"; fi
+  # Outside git the mark holds a checksum of the file list, and its modification time is the start of the turn
+  if in_git; then fingerprint >"$mark_file"; else rm -f "$mark_file"; file_list_sum >"$mark_file"; fi
   exit 0
 fi
 
@@ -71,6 +83,10 @@ if in_git; then
   else
     [ -n "$(git status --porcelain 2>/dev/null)" ] || exit 0
   fi
+elif [ -f "$mark_file" ]; then
+  # Outside git: a file modified after the mark, or a file renamed / deleted (the list changed)
+  [ -n "$(find . -type f -newer "$mark_file" -not -path './.git/*' -print 2>/dev/null | head -n 1)" ] \
+    || [ "$(file_list_sum)" != "$(cat "$mark_file")" ] || exit 0
 fi
 
 # Run even when the execute bit is missing. Time out (perl alarm; timeout is missing on macOS) so a hung check cannot block the turn forever
