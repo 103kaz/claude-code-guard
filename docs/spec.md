@@ -28,6 +28,7 @@ claude-code-guard/
 │   ├── guard-mcp.sh        # PreToolUse(mcp__.*)
 │   ├── fmt-terraform.sh    # PostToolUse(Edit|Write): .tf を整形
 │   ├── verify-loop.sh      # UserPromptSubmit と Stop
+│   ├── doc-check.sh        # PostToolUse(Skill) と PreToolUse(Bash|mcp__.*): PR の前の照合 (doc_check_before_pr)
 │   └── lib/                # 共通の関数 (判定結果の出力、設定の読み込み)
 ├── skills/
 │   ├── setup-verify/
@@ -36,7 +37,8 @@ claude-code-guard/
 │       └── SKILL.md        # /code-guard:doc-code-consistency (文書と実装の照合)
 ├── tests/
 │   ├── test-guard.sh
-│   └── test-verify.sh
+│   ├── test-verify.sh
+│   └── test-doc-check.sh
 ├── docs/
 │   └── spec.md
 ├── .github/workflows/
@@ -161,6 +163,7 @@ Glob はファイル名を返すだけなので対象にしない。
 | 機密値 | 中核の機密値のファイルは読まない |
 | 範囲 | 指定に従う。PR の前は、ブランチの差分の変更行に含まれる主張と、差分で変えた実装に触れている既存の記述 |
 | トークン | 常に載るのは 1 行の説明だけ。手順の本文は実行したときに読み込まれる |
+| PR の前の照合 | `userConfig` の `doc_check_before_pr` (既定は無効)。有効なとき、PostToolUse(Skill) のフック (`scripts/doc-check.sh record`) がスキルを始めた時点の HEAD をリポジトリごとに記録する (`${CLAUDE_PLUGIN_DATA}/doc-check/`)。PreToolUse(Bash\|mcp__.*) のフック (`scripts/doc-check.sh gate`) は、`gh pr create` と MCP の `create_pull_request` で、PR にするブランチの先頭 (`--head` / `head`、無ければ HEAD) が記録と違えば block する。記録は照合の結果によらず残るので、強制ではない |
 
 ## 設定 (userConfig)
 
@@ -172,6 +175,7 @@ Glob はファイル名を返すだけなので対象にしない。
 | `pack_terraform` | 真偽値 | `true` | terraform パック |
 | `pack_gcp` | 真偽値 | `true` | gcp パック |
 | `pack_cloudflare` | 真偽値 | `true` | cloudflare パック |
+| `doc_check_before_pr` | 真偽値 | `false` | PR を作る前に `/code-guard:doc-code-consistency` の照合を求める |
 | `verify_max_retry` | 数値 (1〜10) | `3` | 検証ループのやり直しの回数 |
 
 `userConfig` の型は `string`、`number`、`boolean`、`directory`、`file` の 5 つで、配列は `string` に `multiple: true` を付けて表す。`multiple` の項目は `/config` の一覧に出ないので、`/plugin` の設定の画面から変える。
@@ -207,6 +211,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 |---|---|
 | ガード | `tests/test-guard.sh`。Bash のガード、ファイルのツールのガード、パックの有効・無効、曖昧な形の確認を試す |
 | 検証ループ | `tests/test-verify.sh` |
+| PR の前の照合 | `tests/test-doc-check.sh` |
 | マニフェスト | `claude plugin validate --strict` |
 | CI | GitHub Actions で ubuntu と macOS。public リポジトリなので無料 |
 

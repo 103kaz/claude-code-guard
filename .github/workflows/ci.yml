@@ -23,3 +23,5 @@ jobs:
         run: bash tests/test-guard.sh
       - name: Verify loop tests
         run: bash tests/test-verify.sh
+      - name: Docs check gate tests
+        run: bash tests/test-doc-check.sh
