@@ -30,9 +30,9 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 | 分類 | block | ask |
 |---|---|---|
-| 守るブランチ | 守るブランチへの push (そのブランチにいて引数なしの `git push` も) | 空のリモートへの初回 push |
+| 守るブランチ | 守るブランチへの push (そのブランチにいて引数なしの `git push`、`heads/main`、`cd` や `GIT_DIR=` で移った先のリポジトリも)、`:` だけやワイルドカードの refspec | 空のリモートへの初回 push |
 | push の形 | `--no-verify`、`--mirror`、`--delete` / `-d` / `:ref`、`--prune`、`--all` | force push (`+ref` も)、`confirm_push` が有効なときの作業ブランチへの push |
-| フックの回避 | `core.hooksPath`、`git -c`、`--config-env`、`GIT_CONFIG_*`、alias と include の設定 | |
+| フックの回避 | `core.hooksPath`、`git -c`、`--config-env`、`GIT_CONFIG_*`、alias と include の設定、core / alias / include のセクションの削除、`HOME=` / `XDG_CONFIG_HOME=` を変えた git、`~/.gitconfig` / `~/.config/git/config` の書き換え、commit / merge の `--no-verify` (`commit -n`) | |
 | 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、キーチェーンの値 | |
 | ハーネス | `~/.claude` の settings・フック・プラグイン、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` の Bash での書き換え | `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
 | 取得したコードの実行 | `curl` / `wget` の出力を sh に渡すパイプ | プロセス置換、`bash -c "$(curl ...)"`、`eval` |
@@ -48,7 +48,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 | ツール | block | ask |
 |---|---|---|
 | Read、Grep | 機密値のファイル (中核の機密値と同じパターン) | |
-| Edit、Write、MultiEdit、NotebookEdit | `*.tfvars`、`.git/config`、`.git/hooks` | `~/.claude`、`.claude/settings*`、`.claude/hooks`、`.claude/verify.sh`、`.githooks`、`.github/workflows` |
+| Edit、Write、MultiEdit、NotebookEdit | `*.tfvars`、`.git/config`、`.git/hooks`、`~/.gitconfig`、`~/.config/git/config` | `~/.claude`、`.claude/settings*`、`.claude/hooks`、`.claude/verify.sh`、`.githooks`、`.github/workflows` |
 
 ### MCP ツール (`guard-mcp.sh`)
 

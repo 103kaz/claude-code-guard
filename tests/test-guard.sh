@@ -811,6 +811,11 @@ check_file $BLOCK Edit '/work/infra/prod.tfvars'
 check_file $BLOCK Write '/work/.git/config'
 check_file $BLOCK Edit '/work/.git/hooks/pre-push'
 check_file $BLOCK Edit '/work/sub/.git/modules/m/config'
+# グローバルの git の設定 (alias / include / core.hooksPath を書ける)
+check_file $BLOCK Write "$HOME/.gitconfig"
+check_file $BLOCK Edit "$HOME/.config/git/config"
+check_file $ALLOW Read "$HOME/.gitconfig"
+check_file $ALLOW Edit '/work/app/.gitconfig.example'
 check_file $ASK   Edit "$HOME/.claude/settings.json"
 check_file $ASK   Edit '/work/.claude/settings.json'
 check_file $ASK   Write '/work/.claude/hooks/x.sh'
@@ -869,6 +874,93 @@ check $ALLOW 'rg "terraform" .'
 check $ALLOW 'ls "$HOME/git"'
 check $ALLOW 'X="a git b"; echo $X'
 check $BLOCK 'bash -c "git push origin main"'
+
+# --- git push: refspec の別の書き方・対象のリポジトリを変える形 ---
+# 先頭の refs/ を省いた heads/main も守るブランチ (git は refs/heads/main と読む)
+check $BLOCK 'git push origin HEAD:heads/main'
+check $BLOCK 'git push origin feat/x:heads/master'
+check $ALLOW 'git push origin HEAD:heads/feat/main'
+# 「:」だけ (一致するブランチをすべて push) とワイルドカードは、守るブランチを含みうるので止める
+check $BLOCK 'git push origin :'
+check $BLOCK 'git push origin +:'
+check $BLOCK "git push origin 'refs/heads/*:refs/heads/*'"
+check $BLOCK 'git push origin "ma*"'
+check $BLOCK 'git push origin "feat/*:*"'
+# 宛先が守るブランチに当たりえないワイルドカードは通す
+check $ALLOW 'git push origin "feat/*"'
+check $ALLOW 'git push origin feature-*'
+check $ALLOW "git push origin 'refs/tags/*'"
+check $ALLOW 'git push origin feat/x && echo :done'
+# cd / GIT_DIR で別のリポジトリに移ってからの push は、移った先のブランチで判定する
+check $BLOCK 'cd ../repo_main && git push'
+check $BLOCK 'cd ../repo_main && git push origin HEAD'
+check $BLOCK 'cd .. && git -C repo_main push'
+check $BLOCK 'GIT_DIR=../repo_main/.git GIT_WORK_TREE=../repo_main git push'
+check $ALLOW 'cd ../repo_feat && git push origin HEAD'
+check $ASK   'cd "$REPO" && git push'
+check $BLOCK 'cd .. && GIT_DIR=repo_main/.git git push'
+# 終わったサブシェルの cd と、popd で戻った後は、元の場所で判定する
+check $ALLOW '(cd ../repo_main && ls) && git push origin HEAD'
+check $ALLOW 'pushd ../repo_main && popd && git push origin HEAD'
+GUARD_CWD="$TMPROOT/repo_main"
+# 引用符で包んだ HEAD / @、小文字の head (大文字小文字を区別しないファイルシステムでは HEAD と同じ)
+check $BLOCK "git push origin 'HEAD'"
+check $BLOCK 'git push origin "@"'
+check $BLOCK 'git push origin head'
+check $ALLOW 'GIT_DIR=../repo_feat/.git git push origin HEAD'
+check $ALLOW 'cd ../repo_feat && git push'
+# 文字列の中の cd、別のコマンドの GIT_DIR=、失敗しうる cd は、push の場所を変えない (main のまま)
+check $BLOCK 'echo "a; cd /tmp" && git push'
+check $BLOCK "printf '%s\\n' \"x|cd /tmp\"; git push origin HEAD"
+check $BLOCK 'echo GIT_DIR=/tmp && git push'
+check $BLOCK 'GIT_DIR=/nonexistent true; git push'
+check $BLOCK 'cd ../repo_feat || true; git push'
+check $BLOCK 'cd ../repo_feat; git push'
+check $BLOCK 'cd -- . && git push'
+check $BLOCK 'cd "../repo_main" && git push'
+check $ALLOW "cd '../repo_feat' && git push origin HEAD"
+# push の直後に空白なしで ; && | ) が続く形、括弧で囲んだ形
+check $BLOCK 'git push; echo done'
+check $BLOCK 'git push&&echo done'
+check $BLOCK 'git push|cat'
+check $BLOCK '(git push)'
+check $BLOCK '{ git push; }'
+GUARD_CWD="$TMPROOT/repo_feat"
+
+# --- フックを飛ばす commit / merge (--no-verify、commit -n) ---
+check $BLOCK 'git commit --no-verify -m x'
+check $BLOCK 'git commit -n -m x'
+check $BLOCK 'git commit -nm x'
+check $BLOCK 'git commit --no-ver -m x'
+check $BLOCK 'git merge --no-verify feat/y'
+check $ALLOW 'git commit -am "fix: -n の扱い"'
+check $ALLOW 'git commit --no-edit --amend'
+check $ALLOW 'git commit -m "git commit --no-verify を止める"'
+check $ALLOW 'git merge -n feat/y'
+
+# --- git の設定の別の経路: グローバルの設定ファイル、置き場所を変える環境変数、新しい書式 ---
+check $BLOCK "printf '[alias]\\n\\tp = push --no-verify\\n' >> ~/.gitconfig"
+check $BLOCK 'echo x >> ~/.config/git/config'
+check $BLOCK 'cp /tmp/gc "$HOME/.gitconfig"'
+check $ALLOW 'cat ~/.gitconfig'
+check $ALLOW 'git config --global user.name x'
+check $BLOCK 'HOME=/tmp/h git push origin feat/x'
+check $BLOCK 'XDG_CONFIG_HOME=/tmp/x git commit -m a'
+check $BLOCK 'export HOME=/tmp/h; git push origin feat/x'
+check $BLOCK 'env HOME=/tmp/h git push origin feat/x'
+check $ALLOW 'HOME=/tmp/h npm test'
+check $ALLOW 'HOME=/tmp/h ls ~/git && echo'
+check $BLOCK 'HOME="/tmp/a b" GIT_TRACE=1 /usr/bin/git push origin feat/x'
+check $ALLOW 'git config --remove-section aliases-old'
+check $BLOCK 'git config unset core.hooksPath'
+check $BLOCK 'git config --remove-section core'
+check $BLOCK 'git config remove-section alias'
+check $BLOCK 'git config --global --remove-section include'
+check $BLOCK 'git config rename-section core x'
+check $ALLOW 'git config --unset alias.p'
+check $ALLOW 'git config --remove-section user'
+check $BLOCK 'git config set core.hooksPath /dev/null'
+check $BLOCK "git config set alias.p 'push --no-verify'"
 
 # A failing detector is asked, not passed silently
 tmp_hooks="$(mktemp -d "${TMPDIR:-/tmp}/code-guard-test.XXXXXX")"

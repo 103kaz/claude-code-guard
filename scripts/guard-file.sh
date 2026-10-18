@@ -2,7 +2,7 @@
 # code-guard: PreToolUse(Read|Grep|Edit|Write|MultiEdit|NotebookEdit) guard.
 # Plugins cannot ship permissions deny / ask, so the file-tool rules live here.
 #   Read, Grep                          block secret files
-#   Edit, Write, MultiEdit, NotebookEdit  block *.tfvars, .git/config, .git/hooks; ask for the harness files
+#   Edit, Write, MultiEdit, NotebookEdit  block *.tfvars, .git/config, .git/hooks, the global git config; ask for the harness files
 # Grep is stopped only when its path is a secret file. A directory search that returns secrets cannot be stopped.
 # Paths are compared in lower case: macOS volumes are usually case-insensitive (.ENV is .env).
 # When you change this, add cases to tests/test-guard.sh and run it.
@@ -46,6 +46,10 @@ case "$tool" in
   Edit|Write|MultiEdit|NotebookEdit)
     if grep -Eq '\.tfvars$|(^|/)\.git/(config|config\.worktree|hooks/)|(^|/)\.git/modules/[^/]+/(config|config\.worktree|hooks/)|(^|/)\.git/worktrees/[^/]+/config\.worktree$' <<<"$path_l"; then
       block "editing $path is not allowed (.tfvars, .git/config, .git/hooks)"
+    fi
+    # The global git config can hold alias / include / core.hooksPath (the same bypasses guard-bash.sh blocks)
+    if [ "$path_l" = "$home_l/.gitconfig" ] || grep -Eq '(^|/)\.config/git/config$' <<<"$path_l"; then
+      block "editing the global git config ($path) is not allowed (it can set aliases, includes and core.hooksPath)"
     fi
     if [[ "$path_l" == "$home_l/.claude/"* ]] \
        || grep -Eq '(^|/)\.claude/(settings[^/]*|hooks/.*|verify\.sh)$|(^|/)\.githooks/|(^|/)\.github/workflows/' <<<"$path_l"; then
