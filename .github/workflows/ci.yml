@@ -12,13 +12,23 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # Pull requests run on ubuntu only; a push to main runs macOS too
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: Install jq (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y jq
+      # The runner image puts a newer bash first on PATH. Use the system /bin/bash (3.2), which the hooks support
+      - name: Use the system bash (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p "$RUNNER_TEMP/sysbash"
+          ln -sf /bin/bash "$RUNNER_TEMP/sysbash/bash"
+          echo "$RUNNER_TEMP/sysbash" >> "$GITHUB_PATH"
+      - name: Show bash
+        run: command -v bash && bash --version | head -n 1
       - name: Guard tests
         run: bash tests/test-guard.sh
       - name: Verify loop tests
