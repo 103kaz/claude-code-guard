@@ -195,16 +195,27 @@ cmd_nr="$(perl -pe 's/((?:^|[\s;&|(])(?:grep|egrep|fgrep|rg|ag)(?:\s+-[^\s\x27"]
 # After cd / pushd, relative arguments are relative to the new directory: a copy of the command with them joined to it
 # (cd .githooks && rm pre-push -> rm .githooks/pre-push) is judged too. A cd to a variable stops the joining
 cmd_cd=""
-[[ "$cmd_nr" == *cd* ]] && cmd_cd="$(perl -0ne 'exit unless /(?:^|[;&|(\n])\s*(?:cd|pushd)(?:\s|$)/;
-  my ($d, $out) = ("", "");
-  for my $seg (split /(&&|\|\||[;|\n])/) {
-    if ($seg =~ /^(?:&&|\|\||[;|\n])$/) { $out .= $seg; next }
+# Subshells ( ) and groups { } are followed (a subshell's cd ends with it), popd goes back, cd options (-P, --) are skipped,
+# a glob target (cd .gi?) is resolved when it names one directory, and a redirect without a space (x>hooks/y) and an
+# --opt=value are read as paths
+if [[ "$cmd_nr" == *cd* || "$cmd_nr" == *pushd* ]]; then
+  cmd_cd="$(perl -0ne 'exit unless /(?:^|[;&|(){}\n])\s*(?:cd|pushd)(?:\s|$)/;
+  my ($d, $out, @sub, @dirs) = ("", "");
+  for my $seg (split /(&&|\|\||[;|\n(){}])/) {
+    if ($seg =~ /^(?:&&|\|\||[;|\n(){}])$/) {
+      push @sub, $d if $seg eq "("; $d = (@sub ? pop @sub : "") if $seg eq ")";
+      $out .= "\n"; next }
+    $seg =~ s/(?<=\S)(\d*>>?|<)/ $1/g; $seg =~ s/(\d*>>?|<)(?=[^\s>&])/$1 /g;
     my @w = split " ", $seg;
+    if (@w && $w[0] eq "popd") { $d = @dirs ? pop @dirs : ""; next }
     if (@w && $w[0] =~ /^(?:cd|pushd)$/) {
-      my @a = @w[1 .. $#w]; shift @a while @a && $a[0] =~ /^-[LPe@]+$/;
+      push @dirs, $d if $w[0] eq "pushd";
+      my @a = @w[1 .. $#w]; shift @a while @a && $a[0] =~ /^(?:-[LPe@]+|--)$/;
       my $t = @a ? $a[0] : "~"; $t =~ s/["\x27]//g;
       if ($t =~ /[\$`]/) { $d = ""; next }
+      if ($t =~ /[*?\[]/) { my @m = grep { -d } glob($d eq "" || $t =~ m{^[/~]} ? $t : "$d/$t"); $t = $m[0] if @m == 1; $t =~ s{^\Q$d\E/}{} if @m == 1 && $d ne "" }
       $d = ($t =~ m{^[/~]} || $d eq "") ? $t : "$d/$t";
+      1 while $d =~ s{(^|/)\.(?:/|$)}{$1};
       1 while $d =~ s{(^|/)(?!\.\.(?:/|$))[^/]+/\.\.(?:/|$)}{$1};
       $d =~ s{/+$}{}; next }
     if ($d eq "" || !@w) { $out .= $seg; next }
@@ -212,13 +223,15 @@ cmd_cd=""
     push @r, $w[$i++] while $i < @w && $w[$i] =~ /^\w+=/;
     push @r, $w[$i++] if $i < @w;
     for (; $i < @w; $i++) {
-      my ($p, $v) = $w[$i] =~ /^(\d*>>?|<|of=|--output=)?(.*)$/s; $p = "" unless defined $p;
-      $v = "$d/$v" if $v ne "" && $v !~ m{^[-+/~\$]};
+      my ($p, $v) = $w[$i] =~ /^(\d*>>?|<|of=|--[A-Za-z-]+=)?(.*)$/s; $p = "" unless defined $p;
+      $v = "$d/$v" if $v ne "" && $v !~ m{^[-+/~\$&]};
       push @r, "$p$v" }
     $out .= join(" ", @r) }
   print $out' <<<"$cmd_nr" 2>/dev/null)"
-# // in a path is one / (~/.claude//settings.json); a URL scheme (https://) is left alone
-cmd_home="$(sed -E 's#([^:/])//+#\1/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.gitconfig([^[:alnum:]_.-]|$)#HOMEGITCONFIG\2#g' <<<"$cmd_nr${cmd_cd:+$'\n'$cmd_cd}" \
+fi
+# // and /./ in a path are one /, and dir/.. is dropped (~/.claude//settings.json, .git/./hooks, ~/./.gitconfig);
+# a URL scheme (https://) is left alone
+cmd_home="$(sed -E -e ':a' -e 's#([^:/])//+#\1/#g; s#/\./#/#g; s#(^|[[:space:]=<>])\./#\1#g; s#(^|[[:space:]=<>/])([^/.[:space:]][^/[:space:]]*|\.[^/.[:space:]][^/[:space:]]*)/\.\./#\1#; ta' -e 's#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.gitconfig([^[:alnum:]_.-]|$)#HOMEGITCONFIG\2#g' <<<"$cmd_nr${cmd_cd:+$'\n'$cmd_cd}" \
   | awk "$HEREDOC_AWK" \
   | sed -e ':a' -e '/\\$/N; s/\\\n//; ta' \
   | awk '{ gsub(/&&|\|\|/, "\n"); print }')"
@@ -499,8 +512,14 @@ fi
 
 # --- Operations that change the machine, run fetched code, or delete the home directory (core) ---
 # The receiving side may be a path (/bin/sh), wrapped (env / sudo -E / command), or another interpreter (python3, perl, node ...).
-# Only the stage that gets the fetched text counts; tee / cat in between pass it through unchanged (curl | jq | perl -ne reads data)
-if grep -Eq "(curl|wget)[^;&|]*(\|[[:space:]]*(sudo[[:space:]]+)?(tee|cat)([[:space:]][^;&|]*)?)*\|[[:space:]]*((sudo|env|command|exec|nohup|nice)([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*([^[:space:]|;&]*/)?((ba|z|da|k|c|tc|fi)?sh|python[0-9.]*|perl|ruby|node|deno|bun|php|lua|osascript)([[:space:]\"']|$)" <<<"$cmd"; then
+#   - a shell anywhere later in the pipe (curl | grep -v '#' | bash still runs the fetched text)
+#   - an interpreter right after curl, or after tee / cat only (they pass the text through unchanged)
+#   - an interpreter later that reads its program from stdin (no arguments, or -). curl | jq | perl -ne '...' reads data
+PIPE_WRAP="((sudo|env|command|exec|nohup|nice)([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*([^[:space:]|;&]*/)?"
+PIPE_INTERP="(python[0-9.]*|perl|ruby|node|deno|bun|php|lua|osascript)"
+if grep -Eq "(curl|wget)([^;&]*)\|[[:space:]]*${PIPE_WRAP}(ba|z|da|k|c|tc|fi)?sh([[:space:]\"';&|)]|$)" <<<"$cmd" \
+   || grep -Eq "(curl|wget)[^;&|]*(\|[[:space:]]*(sudo[[:space:]]+)?(tee|cat)([[:space:]][^;&|]*)?)*\|[[:space:]]*${PIPE_WRAP}${PIPE_INTERP}([[:space:]\"';&|)]|$)" <<<"$cmd" \
+   || grep -Eq "(curl|wget)([^;&]*)\|[[:space:]]*${PIPE_WRAP}${PIPE_INTERP}[[:space:]]*(-[[:space:]]*)?([;&|)]|$)" <<<"$cmd"; then
   block "piping curl/wget output into a shell or interpreter is not allowed (do not run code from an untrusted source)"
 fi
 # Forms other than a pipe: process substitution (bash <(curl ...)) and passing fetched text to bash -c / eval (bash -c "$(curl ...)").
