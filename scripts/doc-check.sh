@@ -1,6 +1,6 @@
 #!/bin/bash
 # code-guard: run /code-guard:doc-code-consistency before a pull request (userConfig doc_check_before_pr, default off).
-#   doc-check.sh record   PostToolUse(Skill): after doc-code-consistency starts, record the repository's HEAD
+#   doc-check.sh record   PostToolUse(Skill): after /code-guard:doc-code-consistency starts, record the repository's HEAD
 #   doc-check.sh gate     PreToolUse(Bash|mcp__.*): block gh pr create / an MCP create_pull_request when the head of the
 #                         branch being proposed is not the recorded commit (no check yet, or commits after it)
 # The record is kept per repository under the plugin data directory. This is a reminder for Claude, not enforcement:
@@ -24,7 +24,8 @@ state="$state_dir/$(printf '%s' "$git_dir" | cksum | tr -c '0-9\n' '_' | head -n
 case "$mode" in
   record)
     skill="$(jq -r '.tool_input.skill // ""' <<<"$input")"
-    if [[ "$skill" =~ (^|:)doc-code-consistency$ ]]; then
+    # Only the bundled skill counts (a personal skill of the same name may have other steps)
+    if [ "$skill" = "code-guard:doc-code-consistency" ]; then
       mkdir -p "$state_dir" 2>/dev/null
       git rev-parse -q --verify HEAD >"$state" 2>/dev/null || rm -f "$state"
     fi

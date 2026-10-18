@@ -163,7 +163,7 @@ Glob はファイル名を返すだけなので対象にしない。
 | 機密値 | 中核の機密値のファイルは読まない |
 | 範囲 | 指定に従う。PR の前は、ブランチの差分の変更行に含まれる主張と、差分で変えた実装に触れている既存の記述 |
 | トークン | 常に載るのは 1 行の説明だけ。手順の本文は実行したときに読み込まれる |
-| PR の前の照合 | `userConfig` の `doc_check_before_pr` (既定は無効)。有効なとき、PostToolUse(Skill) のフック (`scripts/doc-check.sh record`) がスキルを始めた時点の HEAD をリポジトリごとに記録する (`${CLAUDE_PLUGIN_DATA}/doc-check/`)。PreToolUse(Bash\|mcp__.*) のフック (`scripts/doc-check.sh gate`) は、`gh pr create` と MCP の `create_pull_request` で、PR にするブランチの先頭 (`--head` / `head`、無ければ HEAD) が記録と違えば block する。記録は照合の結果によらず残るので、強制ではない |
+| PR の前の照合 | `userConfig` の `doc_check_before_pr` (既定は無効)。有効なとき、PostToolUse(Skill) のフック (`scripts/doc-check.sh record`) が、同梱のスキル (`code-guard:doc-code-consistency`。同じ名前の個人のスキルは数えない) を始めた時点の HEAD をリポジトリごとに記録する (`${CLAUDE_PLUGIN_DATA}/doc-check/`)。PreToolUse(Bash\|mcp__.*) のフック (`scripts/doc-check.sh gate`) は、`gh pr create` と MCP の `create_pull_request` で、PR にするブランチの先頭 (`--head` / `head`、無ければ HEAD) が記録と違えば block する。記録は照合の結果によらず残るので、強制ではない |
 
 ## 設定 (userConfig)
 

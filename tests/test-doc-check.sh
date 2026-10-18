@@ -53,10 +53,16 @@ run gate "$(bash_in 'gh pr view 1')"
 run gate "$(bash_in 'git push -u origin feat/x')"
 [ "$RC" = 0 ] || ng "git push was blocked (rc=$RC)"
 
-# Another skill does not count; doc-code-consistency (plain or plugin-scoped) does
+# Only the bundled skill counts: another skill, or a skill of the same name outside the plugin, does not
 run record "$(skill_in 'code-review')"
 run gate "$(bash_in 'gh pr create')"
 [ "$RC" = 2 ] || ng "another skill counted as the check (rc=$RC)"
+run record "$(skill_in 'doc-code-consistency')"
+run gate "$(bash_in 'gh pr create')"
+[ "$RC" = 2 ] || ng "a doc-code-consistency outside the plugin counted as the check (rc=$RC)"
+run record "$(skill_in 'other-plugin:doc-code-consistency')"
+run gate "$(bash_in 'gh pr create')"
+[ "$RC" = 2 ] || ng "another plugin's doc-code-consistency counted as the check (rc=$RC)"
 run record "$(skill_in 'code-guard:doc-code-consistency')"
 run gate "$(bash_in 'gh pr create --title x')"
 [ "$RC" = 0 ] || ng "gh pr create was blocked right after the check (rc=$RC)"
@@ -72,9 +78,9 @@ git -C "$repo" commit -q --allow-empty -m more
 run gate "$(bash_in 'gh pr create')"
 [ "$RC" = 2 ] || ng "gh pr create passed after a new commit (rc=$RC)"
 grep -q 'Check again' "$tmp/err" || ng "the block reason does not ask to check again"
-run record "$(skill_in 'doc-code-consistency')"
+run record "$(skill_in 'code-guard:doc-code-consistency')"
 run gate "$(bash_in 'gh pr create')"
-[ "$RC" = 0 ] || ng "a plain skill name did not count (rc=$RC)"
+[ "$RC" = 0 ] || ng "a check after the new commit did not count (rc=$RC)"
 
 # --head names the branch being proposed, not the checked-out one
 git -C "$repo" branch other main
