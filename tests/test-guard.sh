@@ -642,8 +642,14 @@ check_mcp $ASK   'mcp__db__query' '{"sql":"REVOKE ALL ON t FROM u"}'
 check_mcp $ASK   'mcp__db__query' '{"sql":"MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET a = 1"}'
 check_mcp $ASK   'mcp__db__query' '{"sql":"ALTER TABLE t RENAME TO u"}'
 # -- inside a string is not a comment, so the text is read with -- kept as well (a comment that names a keyword is asked)
-check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT '--'; DELETE FROM t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT \u0027--\u0027; DELETE FROM t"}'
 check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT a -- update later\nFROM t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT \u0027/*\u0027; DELETE FROM users; SELECT \u0027*/\u0027"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"DELETE#c\nFROM users"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"REPLACE INTO t VALUES (1)"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT 1; COPY t FROM \u0027/tmp/x\u0027"}'
+check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT replace(name, \u0027a\u0027, \u0027b\u0027) FROM users"}'
+check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT * FROM t WHERE note = \u0027copy of x\u0027"}'
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT granted FROM perms"}'
 # Without perl the SQL check cannot run, so the MCP guard stops everything and says why
 nop="$TMPROOT/noperl"; mkdir -p "$nop"

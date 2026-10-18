@@ -27,11 +27,13 @@ fi
 # Tools that run SQL (query, sql, execute) ask when the statement changes data.
 # All string values are joined; /* comments */ and -- comments are dropped, newline, tab and NBSP are flattened to spaces, so
 # DELETE/**/FROM and DELETE--x<newline>FROM are seen. A keyword may be followed by a quote or a parenthesis (UPDATE"t", INSERT(a))
-# A -- inside a string literal is not a comment (SELECT '--'; DELETE ...), so the text is also read with -- kept
+# A comment mark inside a string literal is not a comment (SELECT '--'; DELETE ..., SELECT '/*'; DELETE ...), so the text
+# is also read with the comments kept. # is a MySQL comment. replace and copy count only at the start of a statement
+# (replace(name, 'a', 'b') is a function)
 if grep -Eiq '(^|[_-])(query|sql|execute|exec)([_-]|$)' <<<"$name_w" \
    && jq -r '[.. | strings] | join(" ")' <<<"$(jq -c '.tool_input // {}' <<<"$input")" 2>/dev/null \
-        | perl -0pe 's{/\*.*?\*/}{ }gs; s/\xc2\xa0/ /g; my $k = $_; s/--[^\n]*/ /g; $_ .= "\n" . $k' | tr '\n\t\r' '   ' \
-        | grep -Eiq '(^|[^[:alnum:]_])(drop|delete|truncate|alter|update|insert|replace|create|merge|grant|revoke|rename|upsert|copy)([[:space:]"`(\[]|$)'; then
+        | perl -0pe 's/\xc2\xa0/ /g; my $k = $_; s{/\*.*?\*/}{ }gs; s/--[^\n]*/ /g; s/#[^\n]*/ /g; $_ .= ";\n" . $k' | tr '\n\t\r' '   ' \
+        | grep -Eiq '(^|[^[:alnum:]_])(drop|delete|truncate|alter|update|insert|create|merge|grant|revoke|rename|upsert)([[:space:]"`(\[]|$)|(^|;)[[:space:]]*(replace|copy)([[:space:]"`(\[]|$)'; then
   ask "MCP tool $tool: SQL that changes the database. Confirm the user has OKed this in chat before approving"
 fi
 
