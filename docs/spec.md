@@ -38,7 +38,7 @@ claude-code-guard/
 ├── docs/
 │   └── spec.md
 ├── .github/workflows/
-│   └── ci.yml              # ubuntu と macOS でテストを流す
+│   └── ci.yml              # PR は ubuntu、main への push は ubuntu と macOS でテストを流す
 ├── .claude/
 │   ├── CLAUDE.md           # このリポジトリで作業するときの決まり
 │   └── review/checklist.md # 敵対的レビューの観点 (このリポジトリ用)
@@ -194,7 +194,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | ガード | `tests/test-guard.sh`。Bash のガード、ファイルのツールのガード、パックの有効・無効、曖昧な形の確認を試す |
 | 検証ループ | `tests/test-verify.sh` |
 | マニフェスト | `claude plugin validate --strict` |
-| CI | GitHub Actions で ubuntu と macOS。public リポジトリなので無料 |
+| CI | GitHub Actions。PR では ubuntu、main への push では ubuntu と macOS。macOS は `/bin/bash` (3.2) で流す。public リポジトリなので無料 |
 
 ガードの判定を変えたら、`test-guard.sh` にケースを足して通す。
 
