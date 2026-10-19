@@ -8,7 +8,7 @@
 
 - The guards do not parse the shell. Ambiguous shapes (quoted or split command names and subcommands, `git push` arguments built from quotes or expansions, line continuations in a command with a guarded command word, odd heredoc markers or terminators, a failing check) ask instead of being judged. The same operation through python and similar interpreters is not stopped.
 - Heredoc bodies are treated as data unless the command contains a known interpreter (`bash`, `sh`, `eval`, `python` and similar). The `$( )` and backtick parts of an unquoted heredoc (`<<EOF`) are still judged, because the shell runs them. A body run by another program (`ssh host <<EOF`, `ksh`, `./x.sh` after writing it) is not asked.
-- Brace expansion and `$@` in a `git push` argument (`ma{in,}`, `{main,x}`) are not read: a push to a protected branch written that way is asked, not blocked (with `confirm_push` off too).
+- Brace expansion and `$@` in a `git push` argument (`ma{in,}`, `{main,x}`), and a `git push` run by `xargs`, `parallel` or `find -exec` (`echo main | xargs git push origin`), are not read: a push to a protected branch written that way is asked, not blocked (with `confirm_push` off too).
 - A command longer than 100000 characters is asked without being read.
 - A word that is only `*`, `*.*` or `.*` is not matched against secret names (`cat *` in a directory with `prod.tfvars` passes).
 - When a grep or rg is in the command, quoted strings without a slash are not inspected for `*.pem` / `*.key` (`grep -rn foo . ; cat "server.key"` passes).

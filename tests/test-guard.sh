@@ -1186,6 +1186,23 @@ check $ASK   'git push origin $@'
 check $ASK   'git push origin "$@"'
 check $ASK   'git push origin HEAD:$*'
 check $ALLOW 'git push origin feat/x -o "ci.{a,b}"'
+# xargs から呼ぶ git push は、push 先が実行時に足されるので確認に回す (confirm_push が無効でも)
+GUARD_CWD="$TMPROOT/repo_feat"
+check $ASK   'echo main | xargs git push origin'
+check $ASK   'xargs -I{} git push origin {} < branches.txt'
+check $ASK   "printf 'main\\n' | xargs -n1 git -C . push origin"
+check $ASK   "echo main | xargs -I{} sh -c 'git push origin {}'"
+check $ASK   'echo main | xargs -I{} bash -c "cd . && git push origin {}"'
+check $ASK   'echo main | xargs /usr/bin/git push origin'
+# 大文字の名前 (macOS では XARGS でも動く)、find -exec、parallel も、実行時に push 先を足す
+check $ASK   'echo main | XARGS git push origin'
+check $ASK   'echo main | Xargs git push origin'
+check $ASK   'find * -prune -name main -exec git push origin {} \;'
+check $ASK   'find . -name main -execdir git push origin {} +'
+check $ASK   'echo main | parallel git push origin'
+check $ALLOW 'find . -name "*.sh" -exec git log --oneline -1 {} \;'
+check $ALLOW 'git ls-files | xargs git log --oneline -1'
+GUARD_CWD="$TMPROOT/repo_main"
 check $ALLOW 'GIT_DIR=../repo_feat/.git git push origin HEAD'
 check $ALLOW 'cd ../repo_feat && git push'
 # 文字列の中の cd、別のコマンドの GIT_DIR=、失敗しうる cd は、push の場所を変えない (main のまま)

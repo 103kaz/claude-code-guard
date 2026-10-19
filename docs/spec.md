@@ -131,7 +131,7 @@ Glob はファイル名を返すだけなので対象にしない。
 
 ### push の確認
 
-作業ブランチへの `git push` (force 無し) に確認を出すかは、`userConfig` の `confirm_push` で選べる (既定は有効)。守るブランチへの push の block と force push の ask は、この設定によらない。
+作業ブランチへの `git push` (force 無し) に確認を出すかは、`userConfig` の `confirm_push` で選べる (既定は有効)。守るブランチへの push の block と force push の ask は、この設定によらない。push 先が読めない形 (引数のブレース展開や `$@` / `$*`、`xargs`、`parallel`、`find -exec` から呼ぶ `git push`。コマンド名は大文字小文字を区別しない) も、この設定によらず ask。
 
 ## 検証ループ
 

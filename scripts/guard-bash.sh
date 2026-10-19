@@ -333,6 +333,14 @@ wild_hit="$(PROT="$PROTECTED_LIST" perl -ne 'next unless /\bgit\b[^;&|\n]*?\spus
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]([^[:space:]]*\{[^[:space:]]*,[^[:space:]]*\}|[^[:space:]]*\\\$[@*])" <<<"$cmd_refspec"; then
   soft_block "git push with brace expansion or \$@ / \$* in an argument: the push target cannot be read"
 fi
+# xargs, parallel and find -exec add arguments read at run time (echo main | xargs git push origin,
+# find -name main -exec git push origin {} \;), so the target cannot be read either.
+# The command runs up to the next unquoted ; & | or newline, so a git push inside sh -c '...' or at a path counts.
+# Names are matched without case (macOS finds XARGS as xargs)
+if perl -ne 'while (/(?:^|[\s;&|(`"\x27\/])(?:xargs|parallel|find\b[^;&|\n]*?\s-(?:exec|execdir|ok|okdir))\b((?:"[^"]*"|\x27[^\x27]*\x27|[^;&|\n"\x27])*)/gi) {
+      my $a = $1; if ($a =~ /(?:^|[\s"\x27\/;&|(])git\b[^;&|]*?\spush\b/i) { $f = 1 } } END { exit($f ? 0 : 1) }' <<<"$cmd_msg" 2>/dev/null; then
+  soft_block "git push run by xargs / parallel / find -exec: the push target is added at run time and cannot be read"
+fi
 if grep -Eq "${GIT_PUSH}([[:space:]\"';&|)]|$)" <<<"$cmd_msg"; then
   # Is the push target a protected branch: named in the refspec, or on a protected branch with no refspec / HEAD (git push, git push origin HEAD)
   push_main=0
