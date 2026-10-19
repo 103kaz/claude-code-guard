@@ -148,6 +148,22 @@ if [[ "$cmd_sec" == *[\?\*\[\{\"\'\\]* ]]; then
   [ -n "$glob_hit" ] && block "a glob, brace or quoted pattern ($glob_hit) can expand to a secret file name (.env, *.tfvars, keys); name the files explicitly"
   [ "$glob_rc" -ne 0 ] && soft_block "the secret-name check for globs could not run (exit $glob_rc); the command was not checked for it"
 fi
+# A command substitution that builds a string (printf, rev, tr, base64 -d, xxd -r, echo -e) can put together a secret
+# name the rules above cannot see (cat $(printf .e%snv)). Other run-time names (variables, other commands) are not read.
+# A substitution assigned to a variable (x=$(...)) is not a file name, and neither is message text (-m "$(...)") of
+# git commit / tag and gh pr / issue, so they are not judged. The inside of a substitution is read up to its unquoted ),
+# command names without case (macOS runs PRINTF as printf), also quoted ("printf") or at a path (/usr/bin/printf)
+sub_hit="$(perl -ne 'my @seg = split /([;&|\n])/;
+  for my $s (@seg) {
+    $s =~ s/(?:^|(?<=[\s(]))[A-Za-z_]\w*=("?)(?:\$\(|\x60)/X=$1@(/g;
+    $s =~ s/(\s(?:-m|--message|--body|--title)[ =]"?)(?:\$\(|\x60)/$1@(/g
+      if $s =~ /^\s*(?:\S*\/)?(?:git\b.*\s(?:commit|tag)\b|gh\s+(?:pr|issue)\b)/ }
+  $_ = join "", @seg;
+  while (/(?:\$\(|\x60)((?:"[^"]*"|\x27[^\x27]*\x27|[^)\x60"\x27])*)/g) { my $in = $1;
+    if ($in =~ /(?:^|[\s|;&(])["\x27]?(?:[^\s|;&()"\x27]*\/)?(?:printf|rev|tr|base64\s+(?:-[a-z]*d|--decode)|xxd(?:\s+-[a-z]+)*\s+-[a-z]*r|echo(?:\s+-[a-z]+)*\s+-[a-z]*e)["\x27]?(?=[\s|;&)<>\x60]|$)/i) { print "x"; exit } }' <<<"$cmd_sec" 2>/dev/null)"
+if [ -n "$sub_hit" ]; then
+  soft_block "a command substitution builds a word at run time (printf / rev / tr / base64 -d / xxd -r / echo -e); it can name a secret file"
+fi
 # iOS signing assets (*.p8 *.p12 *.mobileprovision AuthKey_*) and Firebase / GCP service account keys
 if grep -Eiq '(^|[/[:space:]"'"'"'])AuthKey_[[:alnum:]_]+|(^|[^$[:alnum:]_*-])[[:alnum:]_-]+\.(p8|p12|mobileprovision)([[:space:]"'"'"';|&)]|$)|firebase-adminsdk[^[:space:]]*\.json|[Ss]ervice-?[Aa]ccount[^[:space:]]*\.json' <<<"$cmd"; then
   block "access to signing assets (*.p8 / *.p12 / *.mobileprovision / AuthKey_*) and service account keys is not allowed"

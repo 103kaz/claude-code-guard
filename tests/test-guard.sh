@@ -79,6 +79,36 @@ check $ALLOW 'jq -r .Object.Key out.json'
 check $BLOCK 'cat x.kEy'
 check $BLOCK 'cat x.pEm'
 check $BLOCK 'cat x.PeM'
+# コマンド置換の中で文字列を組み立てるコマンド (printf、rev、tr、base64 -d、xxd -r、echo -e) は、機密ファイル名を作れるので確認に回す
+check $ASK   'cat $(printf .e%snv)'
+check $ASK   'cat `printf .e%snv`'
+check $ASK   "cat \"\$(printf '\\x2eenv')\""
+check $ASK   'cat $(echo vne. | rev)'
+check $ASK   'cat $(echo ZW52Cg== | base64 -d)'
+check $ASK   'cat $(echo -e "\x2eenv")'
+check $ASK   'cat $(echo .fow | tr fow env)'
+check $ASK   'cat $(/usr/bin/printf .e%snv)'
+check $ASK   'cat $(command printf .e%snv)'
+# 大文字のコマンド名 (macOS では PRINTF でも動く)、語の直後の < と >、分けた echo のオプション、引用符で包んだ名前、引用符の中の )
+check $ASK   'cat $(PRINTF .e%snv)'
+check $ASK   'cat $(Printf .e%snv)'
+check $ASK   'cat $(rev<<<vne.)'
+check $ASK   'cat $(rev<x)'
+check $ASK   'cat $(printf>/dev/stdout .e%snv)'
+check $ASK   "cat \$(echo -n -e '\\x2eenv')"
+check $ASK   'cat $("printf" .e%snv)'
+check $ASK   'cat $(: ")" ; printf .e%snv)'
+# -m などをメッセージとして外すのは git commit / tag と gh pr / issue だけ (sort -m、less -m は値を取らない)
+check $ASK   'sort -m $(printf .e%snv)'
+check $ASK   'less -m $(printf .e%snv)'
+check $ALLOW "gh pr create --title x --body \"\$(printf 'a\\nb')\""
+# 変数への代入とメッセージの値は、ファイル名として使われないので確認しない
+check $ALLOW 'x=$(git diff --name-only | tr -d x)'
+check $ALLOW 'files="$(git ls-files | tr "\n" " ")"'
+check $ALLOW "git commit -m \"\$(printf 'a\\n\\nb')\""
+check $ALLOW 'cd $(git rev-parse --show-toplevel)'
+check $ALLOW 'echo $(date +%s)'
+check $ALLOW "printf '%s\\n' a | tr a-z A-Z"
 check $ALLOW 'grep -rn "e.key" src/'
 check $ALLOW 'grep -rn "event.key ===" src/'
 check $ALLOW 'grep -rn item.key src'
