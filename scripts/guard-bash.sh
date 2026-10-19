@@ -94,6 +94,8 @@ fi
 fi
 
 # --- Secret files and values (core) ---
+# Names are matched without case: macOS volumes are usually case-insensitive (cat .ENV reads .env). Globs keep case
+# (bash matches .EN? against the names on disk with case), so lib/secret-glob.pl does not change
 # Text of git commit / gh pr·issue (-m / --body / --title values and heredoc bodies) is never executed, so it is excluded.
 # A commit message that merely mentions ".env.local" is not blocked. A double-quoted value with $( or a backtick, and such a
 # line of an unquoted heredoc, are kept: the shell runs them ("$(cat .env)").
@@ -118,7 +120,7 @@ fi
 # *.tfvars regardless of name (prod.tfvars too). Samples such as *.tfvars.example are allowed.
 # A name can follow a redirect (<.env), a rev (HEAD:.env) or an option (--env-file=.env), not only a space or quote.
 # terraform -var-file=x.tfvars only hands the file to terraform, so it keeps passing
-if grep -Eq '(^|[/[:space:]"'"'"'<>=:])([[:alnum:]_*-]+\.tfvars|\.env)([^.[:alnum:]_-]|$)|\.tfvars\.json|[a-z_]*token[a-z_]*\.txt|\.tfstate(\.[a-z]+)?([[:space:]"'"'"';|&)]|$)|\.ssh/|id_(rsa|ed25519|ecdsa)' <<<"$(sed -E 's/-var-file=/-var-file@/g' <<<"$cmd_sec")"; then
+if grep -Eiq '(^|[/[:space:]"'"'"'<>=:])([[:alnum:]_*-]+\.tfvars|\.env)([^.[:alnum:]_-]|$)|\.tfvars\.json|[a-z_]*token[a-z_]*\.txt|\.tfstate(\.[a-z]+)?([[:space:]"'"'"';|&)]|$)|\.ssh/|id_(rsa|ed25519|ecdsa)' <<<"$(sed -E 's/-var-file=/-var-file@/g' <<<"$cmd_sec")"; then
   block "access to secret files (*.tfvars / .env / *.tfstate / *token*.txt / keys) is not allowed"
 fi
 # *.pem / *.key look the same as code search patterns (grep "setting.key " src/).
@@ -128,11 +130,12 @@ cmd_key="$cmd_sec"
 if grep -Eq "${P}(grep|egrep|fgrep|rg|ag)[[:space:]]" <<<"$cmd_sec"; then
   cmd_key="$(sed -E "s/\"[^\"/]*\"//g; s/'[^'/]*'//g" <<<"$cmd_sec")"
 fi
-if grep -Eq '(^|[^$[:alnum:]_-])[[:alnum:]_-]+\.(pem|key)([[:space:]"'"'"';|&)]|$)' <<<"$cmd_key"; then
+# .Key (only the first letter capital) is left out: it is a common JSON field (jq '.Item.Key'), rarely a key file
+if grep -Eiq '(^|[^$[:alnum:]_-])[[:alnum:]_-]+\.(pem|key)([[:space:]"'"'"';|&)]|$)' <<<"$(perl -pe 's/\.Key(?![[:alnum:]_-])/.K_y/g' <<<"$cmd_key")"; then
   block "access to secret files (*.tfvars / .env / *.tfstate / *token*.txt / keys) is not allowed"
 fi
 # .env.local / .env.production etc. (.env.example / .sample / .template are allowed) and wrangler .dev.vars
-if grep -Eq '(^|[/[:space:]"'"'"'<>=:])(\.env\.[A-Za-z0-9._-]+|\.dev\.vars(\.[A-Za-z0-9_-]+)?)([[:space:]"'"'"';|&)]|$)' <<<"$(sed -E 's#\.env\.(example|sample|template)#.env-ok#g' <<<"$cmd_msg")"; then
+if grep -Eiq '(^|[/[:space:]"'"'"'<>=:])(\.env\.[A-Za-z0-9._-]+|\.dev\.vars(\.[A-Za-z0-9_-]+)?)([[:space:]"'"'"';|&)]|$)' <<<"$(perl -pe 's/\.env\.(example|sample|template)/.env-ok/gi' <<<"$cmd_msg")"; then
   block "access to secret files (.env.* / .dev.vars) is not allowed"
 fi
 # Globs and brace expansion build a secret name the rules above cannot see (cat .en?, cat .e{n,x}v, --include=*.tfvars).
@@ -145,14 +148,30 @@ if [[ "$cmd_sec" == *[\?\*\[\{\"\'\\]* ]]; then
   [ -n "$glob_hit" ] && block "a glob, brace or quoted pattern ($glob_hit) can expand to a secret file name (.env, *.tfvars, keys); name the files explicitly"
   [ "$glob_rc" -ne 0 ] && soft_block "the secret-name check for globs could not run (exit $glob_rc); the command was not checked for it"
 fi
+# A command substitution that builds a string (printf, rev, tr, base64 -d, xxd -r, echo -e) can put together a secret
+# name the rules above cannot see (cat $(printf .e%snv)). Other run-time names (variables, other commands) are not read.
+# A substitution assigned to a variable (x=$(...)) is not a file name, and neither is message text (-m "$(...)") of
+# git commit / tag and gh pr / issue, so they are not judged. The inside of a substitution is read up to its unquoted ),
+# command names without case (macOS runs PRINTF as printf), also quoted ("printf") or at a path (/usr/bin/printf)
+sub_hit="$(perl -ne 'my @seg = split /([;&|\n])/;
+  for my $s (@seg) {
+    $s =~ s/(?:^|(?<=[\s(]))[A-Za-z_]\w*=("?)(?:\$\(|\x60)/X=$1@(/g;
+    $s =~ s/(\s(?:-m|--message|--body|--title)[ =]"?)(?:\$\(|\x60)/$1@(/g
+      if $s =~ /^\s*(?:\S*\/)?(?:git\b.*\s(?:commit|tag)\b|gh\s+(?:pr|issue)\b)/ }
+  $_ = join "", @seg;
+  while (/(?:\$\(|\x60)((?:"[^"]*"|\x27[^\x27]*\x27|[^)\x60"\x27])*)/g) { my $in = $1;
+    if ($in =~ /(?:^|[\s|;&(])["\x27]?(?:[^\s|;&()"\x27]*\/)?(?:printf|rev|tr|base64\s+(?:-[a-z]*d|--decode)|xxd(?:\s+-[a-z]+)*\s+-[a-z]*r|echo(?:\s+-[a-z]+)*\s+-[a-z]*e)["\x27]?(?=[\s|;&)<>\x60]|$)/i) { print "x"; exit } }' <<<"$cmd_sec" 2>/dev/null)"
+if [ -n "$sub_hit" ]; then
+  soft_block "a command substitution builds a word at run time (printf / rev / tr / base64 -d / xxd -r / echo -e); it can name a secret file"
+fi
 # iOS signing assets (*.p8 *.p12 *.mobileprovision AuthKey_*) and Firebase / GCP service account keys
-if grep -Eq '(^|[/[:space:]"'"'"'])AuthKey_[[:alnum:]_]+|(^|[^$[:alnum:]_*-])[[:alnum:]_-]+\.(p8|p12|mobileprovision)([[:space:]"'"'"';|&)]|$)|firebase-adminsdk[^[:space:]]*\.json|[Ss]ervice-?[Aa]ccount[^[:space:]]*\.json' <<<"$cmd"; then
+if grep -Eiq '(^|[/[:space:]"'"'"'])AuthKey_[[:alnum:]_]+|(^|[^$[:alnum:]_*-])[[:alnum:]_-]+\.(p8|p12|mobileprovision)([[:space:]"'"'"';|&)]|$)|firebase-adminsdk[^[:space:]]*\.json|[Ss]ervice-?[Aa]ccount[^[:space:]]*\.json' <<<"$cmd"; then
   block "access to signing assets (*.p8 / *.p12 / *.mobileprovision / AuthKey_*) and service account keys is not allowed"
 fi
 # CLI credentials: cloud (~/.aws, ~/.config/gcloud), GitHub (gh token), container and Kubernetes, home .netrc / .npmrc / .pypirc,
 # macOS keychain values, git credentials (store files and the credential helpers). A project .npmrc (registry settings) is not covered.
 # // and /./ are collapsed first (~//.netrc is ~/.netrc)
-if grep -Eq '\.aws/(credentials|config|sso/cache|cli/cache)|\.config/(gh/hosts\.yml|gcloud/|git/credentials)|\.git-credentials|\.kube/config|\.docker/config\.json|(~|\$HOME|\$\{HOME\}|/Users/[^/[:space:]]+|/home/[^/[:space:]]+)/\.(netrc|npmrc|pypirc)([^[:alnum:]_.-]|$)' <<<"$(sed -E 's#/(\./)+#/#g; s#//+#/#g' <<<"$cmd_sec")" \
+if grep -Eiq '\.aws/(credentials|config|sso/cache|cli/cache)|\.config/(gh/hosts\.yml|gcloud/|git/credentials)|\.git-credentials|\.kube/config|\.docker/config\.json|(~|\$HOME|\$\{HOME\}|/Users/[^/[:space:]]+|/home/[^/[:space:]]+)/\.(netrc|npmrc|pypirc)([^[:alnum:]_.-]|$)' <<<"$(sed -E 's#/(\./)+#/#g; s#//+#/#g' <<<"$cmd_sec")" \
    || grep -Eq "${P}(git[^|;&]*[[:space:]]|git-)credential(-[a-z]+)?[[:space:]]+(fill|get)([[:space:]]|$)" <<<"$cmd_msg" \
    || grep -Eq "${P}gh[[:space:]]+auth[[:space:]]+(token|status([^|;&]*)[[:space:]](-t|--show-token))([[:space:]\"']|$)" <<<"$cmd" \
    || grep -Eq "${P}security[[:space:]]+(find-(generic|internet)-password([^|;&]*)[[:space:]]-[a-zA-Z]*[wg]([[:space:]]|$)|dump-keychain)" <<<"$cmd"; then
@@ -329,6 +348,14 @@ wild_hit="$(PROT="$PROTECTED_LIST" perl -ne 'next unless /\bgit\b[^;&|\n]*?\spus
 # target cannot be read: ask
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]([^[:space:]]*\{[^[:space:]]*,[^[:space:]]*\}|[^[:space:]]*\\\$[@*])" <<<"$cmd_refspec"; then
   soft_block "git push with brace expansion or \$@ / \$* in an argument: the push target cannot be read"
+fi
+# xargs, parallel and find -exec add arguments read at run time (echo main | xargs git push origin,
+# find -name main -exec git push origin {} \;), so the target cannot be read either.
+# The command runs up to the next unquoted ; & | or newline, so a git push inside sh -c '...' or at a path counts.
+# Names are matched without case (macOS finds XARGS as xargs)
+if perl -ne 'while (/(?:^|[\s;&|(`"\x27\/])(?:xargs|parallel|find\b[^;&|\n]*?\s-(?:exec|execdir|ok|okdir))\b((?:"[^"]*"|\x27[^\x27]*\x27|[^;&|\n"\x27])*)/gi) {
+      my $a = $1; if ($a =~ /(?:^|[\s"\x27\/;&|(])git\b[^;&|]*?\spush\b/i) { $f = 1 } } END { exit($f ? 0 : 1) }' <<<"$cmd_msg" 2>/dev/null; then
+  soft_block "git push run by xargs / parallel / find -exec: the push target is added at run time and cannot be read"
 fi
 if grep -Eq "${GIT_PUSH}([[:space:]\"';&|)]|$)" <<<"$cmd_msg"; then
   # Is the push target a protected branch: named in the refspec, or on a protected branch with no refspec / HEAD (git push, git push origin HEAD)

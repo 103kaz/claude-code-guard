@@ -58,6 +58,57 @@ check $BLOCK 'cat .env.local'
 check $BLOCK 'cat web/.env.production'
 check $BLOCK 'cat .dev.vars'
 check $ALLOW 'cat .env.example'
+# macOS の既定のボリュームは大文字小文字を区別しないので、.ENV も .env (guard-file.sh と同じ)
+check $BLOCK 'cat ./.ENV'
+check $BLOCK 'cat .Env'
+check $BLOCK 'cat .ENV.LOCAL'
+check $BLOCK 'cat .Dev.Vars'
+check $BLOCK 'cat Prod.TFVARS'
+check $BLOCK 'cat terraform.TFSTATE'
+check $BLOCK 'cat Server.KEY'
+check $BLOCK 'cat cert.PEM'
+check $BLOCK 'cat ~/.SSH/id_rsa'
+check $BLOCK 'cat ~/.AWS/credentials'
+check $BLOCK 'cat ~/.NETRC'
+check $BLOCK 'cat dist.P12'
+check $ALLOW 'cat .ENV.EXAMPLE'
+# 先頭だけ大文字の .Key は JSON のフィールド (AWS の .Item.Key など) によくあるので、鍵ファイルとして止めない
+check $ALLOW "jq -r '.Item.Key' out.json"
+check $ALLOW 'jq -r .Object.Key out.json'
+# .Key 以外の混ざった大文字小文字 (.kEy、.pEm、.PeM) は鍵ファイルとして止める
+check $BLOCK 'cat x.kEy'
+check $BLOCK 'cat x.pEm'
+check $BLOCK 'cat x.PeM'
+# コマンド置換の中で文字列を組み立てるコマンド (printf、rev、tr、base64 -d、xxd -r、echo -e) は、機密ファイル名を作れるので確認に回す
+check $ASK   'cat $(printf .e%snv)'
+check $ASK   'cat `printf .e%snv`'
+check $ASK   "cat \"\$(printf '\\x2eenv')\""
+check $ASK   'cat $(echo vne. | rev)'
+check $ASK   'cat $(echo ZW52Cg== | base64 -d)'
+check $ASK   'cat $(echo -e "\x2eenv")'
+check $ASK   'cat $(echo .fow | tr fow env)'
+check $ASK   'cat $(/usr/bin/printf .e%snv)'
+check $ASK   'cat $(command printf .e%snv)'
+# 大文字のコマンド名 (macOS では PRINTF でも動く)、語の直後の < と >、分けた echo のオプション、引用符で包んだ名前、引用符の中の )
+check $ASK   'cat $(PRINTF .e%snv)'
+check $ASK   'cat $(Printf .e%snv)'
+check $ASK   'cat $(rev<<<vne.)'
+check $ASK   'cat $(rev<x)'
+check $ASK   'cat $(printf>/dev/stdout .e%snv)'
+check $ASK   "cat \$(echo -n -e '\\x2eenv')"
+check $ASK   'cat $("printf" .e%snv)'
+check $ASK   'cat $(: ")" ; printf .e%snv)'
+# -m などをメッセージとして外すのは git commit / tag と gh pr / issue だけ (sort -m、less -m は値を取らない)
+check $ASK   'sort -m $(printf .e%snv)'
+check $ASK   'less -m $(printf .e%snv)'
+check $ALLOW "gh pr create --title x --body \"\$(printf 'a\\nb')\""
+# 変数への代入とメッセージの値は、ファイル名として使われないので確認しない
+check $ALLOW 'x=$(git diff --name-only | tr -d x)'
+check $ALLOW 'files="$(git ls-files | tr "\n" " ")"'
+check $ALLOW "git commit -m \"\$(printf 'a\\n\\nb')\""
+check $ALLOW 'cd $(git rev-parse --show-toplevel)'
+check $ALLOW 'echo $(date +%s)'
+check $ALLOW "printf '%s\\n' a | tr a-z A-Z"
 check $ALLOW 'grep -rn "e.key" src/'
 check $ALLOW 'grep -rn "event.key ===" src/'
 check $ALLOW 'grep -rn item.key src'
@@ -633,7 +684,27 @@ check_mcp $ASK   'mcp__gh__push_files'
 check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DELETE\nFROM users"}'
 check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DROP\tTABLE x"}'
 # ブランチに直接コミットする GitHub のツール、unpublish / erase
-check_mcp $ASK   'mcp__github__create_or_update_file' '{"branch":"main","path":"a","content":"x"}'
+# ブランチに書くツールで、引数の branch / ref が守るブランチなら block (Bash の守るブランチへの push と同じ)
+check_mcp $BLOCK 'mcp__github__create_or_update_file' '{"branch":"main","path":"a","content":"x"}'
+check_mcp $BLOCK 'mcp__github__push_files' '{"branch":"master","files":[]}'
+check_mcp $BLOCK 'mcp__github__create_or_update_file' '{"branch":"refs/heads/main","path":"a","content":"x"}'
+check_mcp $BLOCK 'mcp__git__update_ref' '{"ref":"heads/main","sha":"abc"}'
+check_mcp $BLOCK 'mcp__git__createCommit' '{"branch":"main"}'
+check_mcp $ASK   'mcp__github__create_or_update_file' '{"branch":"feat/x","path":"a","content":"x"}'
+check_mcp $ASK   'mcp__github__create_or_update_file' '{"path":"a","content":"x"}'
+check_mcp $ASK   'mcp__github__push_files' '{"branch":"main-docs"}'
+# 指定したブランチにコミットする delete_file / create_file / write_file / edit_file / commit_files も同じ。空の branch は無いのと同じ
+check_mcp $BLOCK 'mcp__github__delete_file' '{"branch":"main","path":"a"}'
+check_mcp $BLOCK 'mcp__x__create_file' '{"branch":"main","path":"a"}'
+check_mcp $BLOCK 'mcp__x__commit_files' '{"branch":"master"}'
+check_mcp $BLOCK 'mcp__github__create_or_update_file' '{"branch":"","ref":"main"}'
+check_mcp $ASK   'mcp__github__delete_file' '{"branch":"feat/x","path":"a"}'
+check_mcp $ALLOW 'mcp__fs__write_file' '{"path":"a","content":"x"}'
+check_mcp $BLOCK 'mcp__github__create_or_update_file' '{"branch":" main "}'
+check_mcp $BLOCK 'mcp__github__push_files' '{"branch":"main\n"}'
+check_mcp $ASK   'mcp__github__merge_pull_request' '{"branch":"main"}'
+out="$(jq -n '{tool_name:"mcp__github__push_files",tool_input:{branch:"develop"}}' | CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,develop bash "$HOOKS/guard-mcp.sh" 2>/dev/null)"; rc=$?; n=$((n + 1))
+if [ "$rc" != 2 ]; then echo "FAIL (want 2, got $rc): mcp push_files to develop with protected_branches=main,develop"; fail=1; fi
 check_mcp $ASK   'mcp__github__update_file'
 check_mcp $ASK   'mcp__git__create_commit'
 check_mcp $ASK   'mcp__git__update_ref'
@@ -659,6 +730,46 @@ check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT 1; COPY t FROM \u0027/tmp/x\u0
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT replace(name, \u0027a\u0027, \u0027b\u0027) FROM users"}'
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT * FROM t WHERE note = \u0027copy of x\u0027"}'
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT granted FROM perms"}'
+# 引用符で囲んだ識別子 ("update"、`delete`、[create]) は語として読まない。語の直後の引用符 (UPDATE"t") と、空白を含む識別子は従来どおり
+check_mcp $ALLOW 'mcp__db__query' '{"sql":"select created_at, \"update\" from t"}'
+check_mcp $ALLOW 'mcp__db__query' '{"sql":"select `delete`, [create] from t"}'
+check_mcp $ALLOW 'mcp__db__query' '{"sql":"select \"Drop\" as x from t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"select \"update\" from t; delete from t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"select \"a b\"; DROP TABLE t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"select \"a b\"delete from t"}'
+# 語の直後の引用符の識別子は、置き換えた後も引用符が残り、語の境界が保たれる (文の形の規則に当たらない形で確かめる)
+check_mcp $ASK   'mcp__db__query' '{"sql":"TRUNCATE\"users\""}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"TRUNCATE`users`"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"COPY\"t\"FROM '/tmp/x.csv'"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"REPLACE`t`VALUES(1)"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"DROP\"t\""}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT 1;\"\"DELETE FROM t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"UPDATE\"users\"SET a=1"}'
+# ツール名に query / sql / execute / exec が無くても、マイグレーションのツールと、入力が変更系の文の形なら ask
+check_mcp $ASK   'mcp__supabase__apply_migration' '{"name":"x","query":"drop table t"}'
+check_mcp $ASK   'mcp__db__run' '{"statement":"DELETE FROM users"}'
+check_mcp $ASK   'mcp__db__statement' '{"text":"update users set a = 1"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"INSERT INTO t VALUES (1)"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"alter/**/table t add column c int"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE TABLE t"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"create table t (a int)"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"UPDATE\"users\"SET a=1"}'
+check_mcp $ASK   'mcp__supabase__apply_migration' '{"name":"x","query":"create index i on t (a)"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"UPDATE users AS u SET a = 1"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"UPDATE users u SET a = 1"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"UPDATE t JOIN u ON t.id = u.id SET t.a = 1"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"DELETE t FROM t JOIN u ON t.id = u.id"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE a, b"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE TABLE ONLY a"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"RENAME TABLE a TO b"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"INSERT t VALUES (1)"}'
+# 読むだけのツール (search / list / get など) は、入力が文の形でも ask にしない
+check_mcp $ALLOW 'mcp__github__search_code' '{"q":"DELETE FROM users"}'
+check_mcp $ALLOW 'mcp__github__get_file_contents' '{"path":"db/drop_table.sql"}'
+check_mcp $ALLOW 'mcp__supabase__list_migrations'
+check_mcp $ALLOW 'mcp__db__run' '{"q":"SELECT * FROM t"}'
+check_mcp $ALLOW 'mcp__docs__search' '{"query":"how to update a record"}'
+check_mcp $ALLOW 'mcp__slack__post_message' '{"text":"we will create a new channel"}'
 # Without perl the SQL check cannot run, so the MCP guard stops everything and says why
 nop="$TMPROOT/noperl"; mkdir -p "$nop"
 for c in bash jq sed grep tr cat; do ln -sf "$(command -v "$c")" "$nop/$c"; done
@@ -1140,6 +1251,23 @@ check $ASK   'git push origin $@'
 check $ASK   'git push origin "$@"'
 check $ASK   'git push origin HEAD:$*'
 check $ALLOW 'git push origin feat/x -o "ci.{a,b}"'
+# xargs から呼ぶ git push は、push 先が実行時に足されるので確認に回す (confirm_push が無効でも)
+GUARD_CWD="$TMPROOT/repo_feat"
+check $ASK   'echo main | xargs git push origin'
+check $ASK   'xargs -I{} git push origin {} < branches.txt'
+check $ASK   "printf 'main\\n' | xargs -n1 git -C . push origin"
+check $ASK   "echo main | xargs -I{} sh -c 'git push origin {}'"
+check $ASK   'echo main | xargs -I{} bash -c "cd . && git push origin {}"'
+check $ASK   'echo main | xargs /usr/bin/git push origin'
+# 大文字の名前 (macOS では XARGS でも動く)、find -exec、parallel も、実行時に push 先を足す
+check $ASK   'echo main | XARGS git push origin'
+check $ASK   'echo main | Xargs git push origin'
+check $ASK   'find * -prune -name main -exec git push origin {} \;'
+check $ASK   'find . -name main -execdir git push origin {} +'
+check $ASK   'echo main | parallel git push origin'
+check $ALLOW 'find . -name "*.sh" -exec git log --oneline -1 {} \;'
+check $ALLOW 'git ls-files | xargs git log --oneline -1'
+GUARD_CWD="$TMPROOT/repo_main"
 check $ALLOW 'GIT_DIR=../repo_feat/.git git push origin HEAD'
 check $ALLOW 'cd ../repo_feat && git push'
 # 文字列の中の cd、別のコマンドの GIT_DIR=、失敗しうる cd は、push の場所を変えない (main のまま)

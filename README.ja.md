@@ -33,7 +33,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 | 守るブランチ | 守るブランチへの push (そのブランチにいて引数なしの `git push`、`heads/main`、`cd` や `GIT_DIR=` で移った先のリポジトリも)、`:` だけやワイルドカードの refspec | 空のリモートへの初回 push |
 | push の形 | `--no-verify`、`--mirror`、`--delete` / `-d` / `:ref`、`--prune`、`--all` | force push (`+ref` も)、`confirm_push` が有効なときの作業ブランチへの push |
 | フックの回避 | `core.hooksPath`、`git -c`、`--config-env`、`GIT_CONFIG_*`、alias と include の設定、core / alias / include のセクションの削除、`HOME=` / `XDG_CONFIG_HOME=` を変えた git、`~/.gitconfig` / `~/.config/git/config` の書き換え、commit / merge の `--no-verify` (`commit -n`) | |
-| 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、git の資格情報 (`~/.git-credentials`、`git credential fill`)、キーチェーンの値。`<`、`rev:`、`--opt=` の後の名前 (terraform の `-var-file=` は除く) と、展開するとこれらになるグロブやブレース (`.en?`、`.e{n,x}v`) も | |
+| 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、git の資格情報 (`~/.git-credentials`、`git credential fill`)、キーチェーンの値。`<`、`rev:`、`--opt=` の後の名前 (terraform の `-var-file=` は除く) と、展開するとこれらになるグロブやブレース (`.en?`、`.e{n,x}v`) も。名前は大文字小文字を区別しない (`.ENV`) | 文字列を組み立てるコマンド置換 (`cat $(printf .e%snv)`) |
 | ハーネス | `~/.claude` の settings・フック・プラグイン、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` (`.git/modules/` の下のサブモジュールも) の Bash での書き換え。書き換えに数えるのは、リダイレクト、`sed` / `perl` / `ruby -i`、`awk -i inplace`、ファイルのコマンド、`dd`、`rsync`、`curl -o`、`wget -O`、`git checkout` / `restore` / `apply` / `am`。`cd` の後の相対パスも | `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
 | 取得したコードの実行 | `curl` / `wget` の出力を、シェル (`/bin/sh`、`env bash` など。パイプの何段後でも) やインタプリタ (`python3`、`perl`、`node` など。curl のすぐ次の段か、後ろの段で標準入力からプログラムを読む形) に渡すパイプ | プロセス置換、`bash -c "$(curl ...)"`、`eval` |
 | 消す操作 | ルートやホームへの `rm -r` (`--` や長いオプションの後も) | ビルドの生成物でないディレクトリの `rm -r`、`git clean`、`reset --hard`、`restore`、`checkout [<rev>] --`、`stash drop`、`branch -D`、`xargs rm`、`find -delete` / `-exec rm` |
@@ -52,7 +52,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 ### MCP ツール (`guard-mcp.sh`)
 
-ツール名に `delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`erase`、`deploy`、`publish`、`unpublish`、`rollback`、`secret` の語があるか、`merge_pull_request`、`merge_branch`、`push_files`、`push_branch`、`force_push`、`create_or_update_file`、`update_file`、`create_commit`、`update_ref` なら ask です。`query`、`sql`、`execute`、`exec` のツールは、入力が変更系の文 (`DROP`、`DELETE`、`UPDATE`、`INSERT`、`MERGE`、`GRANT`、`REVOKE`、`COPY` など。コメントは外して読みます) のとき ask です。`jq` か `perl` が無いときは、MCP のツールをすべて止めます。
+ツール名に `delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`erase`、`deploy`、`publish`、`unpublish`、`rollback`、`secret` の語があるか、`merge_pull_request`、`merge_branch`、`push_files`、`push_branch`、`force_push`、`create_or_update_file`、`update_file`、`create_commit`、`update_ref` なら ask です。ブランチに書くもの (`push_files`、`push_branch`、`force_push`、`create_or_update_file`、`update_file`、`create_commit`、`update_ref`、ブランチを指定した `delete_file`、`create_file`、`write_file`、`edit_file`、`commit_files`) は、引数の `branch` か `ref` が守るブランチなら block です。`query`、`sql`、`execute`、`exec`、`migration`、`migrations`、`migrate` のツールは、入力に変更系の語 (`DROP`、`DELETE`、`UPDATE`、`INSERT`、`MERGE`、`GRANT`、`REVOKE`、`COPY` など。コメントは外して読みます) があるとき ask です。ほかのツールも、入力が変更系の文の形 (`DELETE FROM`、`UPDATE t SET`、`INSERT INTO`、`DROP TABLE`、`CREATE INDEX` など) なら ask です。そう読める文章のメッセージも ask になります。名前が `get`、`list`、`search`、`read`、`describe`、`fetch`、`find`、`view`、`show` で始まるツールは、入力を見ません。`jq` か `perl` が無いときは、MCP のツールをすべて止めます。
 
 ### パック
 
