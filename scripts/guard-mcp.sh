@@ -18,6 +18,21 @@ name="${tool##*__}"
 # deleteRepository -> delete_Repository, so the words can be split on _ and -
 name_w="$(sed -E 's/([a-z0-9])([A-Z])/\1_\2/g' <<<"$name")"
 
+# A tool that writes straight to a branch is blocked when its branch / ref argument is a protected branch, as a Bash push
+# to it is. Without the argument (the server picks the branch) it is asked below. Tools that commit a file change to the
+# branch they are given (delete_file, create_file, write_file, edit_file, commit_files) count too; without a branch
+# argument they write elsewhere (a local file) and are not judged here
+if grep -Eiq '(^|_)(push_files|push_branch|force_push|create_or_update_file|update_file|create_commit|update_ref|delete_file|create_file|write_file|edit_file|commit_files)$' <<<"$name_w"; then
+  # Both branch and ref are read; an empty value is no value. Spaces around a value are dropped (" main " may reach
+  # main if the server trims it)
+  while IFS= read -r target; do
+    target="${target#refs/}"; target="${target#heads/}"
+    if is_protected_branch "$target"; then
+      block "MCP tool $tool: writes straight to the protected branch $target (${PROTECTED_LIST}). Create a branch and open a PR"
+    fi
+  done <<<"$(jq -r '.tool_input | if type == "object" then (.branch, .ref) else empty end | select(type == "string") | gsub("^\\s+|\\s+$"; "") | select(. != "")' <<<"$input" 2>/dev/null)"
+fi
+
 # Does the tool name (words split by _ or -) contain a word for delete / publish / change secrets, or is it a tool that
 # writes to a branch (merge, push, commit a file straight to a branch, move a ref)
 if grep -Eiq '(^|[_-])(delete|destroy|drop|purge|remove|truncate|wipe|erase|deploy|publish|unpublish|rollback|secret|secrets)([_-]|$)|(^|_)(merge_pull_request|merge_branch|push_files|push_branch|force_push|create_or_update_file|update_file|create_commit|update_ref)$' <<<"$name_w"; then

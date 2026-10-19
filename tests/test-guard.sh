@@ -684,7 +684,27 @@ check_mcp $ASK   'mcp__gh__push_files'
 check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DELETE\nFROM users"}'
 check_mcp $ASK   'mcp__cf__d1_database_query' '{"sql":"DROP\tTABLE x"}'
 # ブランチに直接コミットする GitHub のツール、unpublish / erase
-check_mcp $ASK   'mcp__github__create_or_update_file' '{"branch":"main","path":"a","content":"x"}'
+# ブランチに書くツールで、引数の branch / ref が守るブランチなら block (Bash の守るブランチへの push と同じ)
+check_mcp $BLOCK 'mcp__github__create_or_update_file' '{"branch":"main","path":"a","content":"x"}'
+check_mcp $BLOCK 'mcp__github__push_files' '{"branch":"master","files":[]}'
+check_mcp $BLOCK 'mcp__github__create_or_update_file' '{"branch":"refs/heads/main","path":"a","content":"x"}'
+check_mcp $BLOCK 'mcp__git__update_ref' '{"ref":"heads/main","sha":"abc"}'
+check_mcp $BLOCK 'mcp__git__createCommit' '{"branch":"main"}'
+check_mcp $ASK   'mcp__github__create_or_update_file' '{"branch":"feat/x","path":"a","content":"x"}'
+check_mcp $ASK   'mcp__github__create_or_update_file' '{"path":"a","content":"x"}'
+check_mcp $ASK   'mcp__github__push_files' '{"branch":"main-docs"}'
+# 指定したブランチにコミットする delete_file / create_file / write_file / edit_file / commit_files も同じ。空の branch は無いのと同じ
+check_mcp $BLOCK 'mcp__github__delete_file' '{"branch":"main","path":"a"}'
+check_mcp $BLOCK 'mcp__x__create_file' '{"branch":"main","path":"a"}'
+check_mcp $BLOCK 'mcp__x__commit_files' '{"branch":"master"}'
+check_mcp $BLOCK 'mcp__github__create_or_update_file' '{"branch":"","ref":"main"}'
+check_mcp $ASK   'mcp__github__delete_file' '{"branch":"feat/x","path":"a"}'
+check_mcp $ALLOW 'mcp__fs__write_file' '{"path":"a","content":"x"}'
+check_mcp $BLOCK 'mcp__github__create_or_update_file' '{"branch":" main "}'
+check_mcp $BLOCK 'mcp__github__push_files' '{"branch":"main\n"}'
+check_mcp $ASK   'mcp__github__merge_pull_request' '{"branch":"main"}'
+out="$(jq -n '{tool_name:"mcp__github__push_files",tool_input:{branch:"develop"}}' | CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,develop bash "$HOOKS/guard-mcp.sh" 2>/dev/null)"; rc=$?; n=$((n + 1))
+if [ "$rc" != 2 ]; then echo "FAIL (want 2, got $rc): mcp push_files to develop with protected_branches=main,develop"; fail=1; fi
 check_mcp $ASK   'mcp__github__update_file'
 check_mcp $ASK   'mcp__git__create_commit'
 check_mcp $ASK   'mcp__git__update_ref'
