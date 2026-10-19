@@ -52,7 +52,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 ### MCP ツール (`guard-mcp.sh`)
 
-ツール名に `delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`erase`、`deploy`、`publish`、`unpublish`、`rollback`、`secret` の語があるか、`merge_pull_request`、`merge_branch`、`push_files`、`push_branch`、`force_push`、`create_or_update_file`、`update_file`、`create_commit`、`update_ref` なら ask です。`query`、`sql`、`execute`、`exec` のツールは、入力が変更系の文 (`DROP`、`DELETE`、`UPDATE`、`INSERT`、`MERGE`、`GRANT`、`REVOKE`、`COPY` など。コメントは外して読みます) のとき ask です。`jq` か `perl` が無いときは、MCP のツールをすべて止めます。
+ツール名に `delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`erase`、`deploy`、`publish`、`unpublish`、`rollback`、`secret` の語があるか、`merge_pull_request`、`merge_branch`、`push_files`、`push_branch`、`force_push`、`create_or_update_file`、`update_file`、`create_commit`、`update_ref` なら ask です。`query`、`sql`、`execute`、`exec`、`migration` のツールは、入力に変更系の語 (`DROP`、`DELETE`、`UPDATE`、`INSERT`、`MERGE`、`GRANT`、`REVOKE`、`COPY` など。コメントは外して読みます) があるとき ask です。ほかのツールも、入力が変更系の文の形 (`DELETE FROM`、`UPDATE t SET`、`INSERT INTO`、`DROP TABLE`、`CREATE INDEX` など) なら ask です。そう読める文章のメッセージも ask になります。名前が `get`、`list`、`search`、`read`、`describe`、`fetch`、`find`、`view`、`show` で始まるツールは、入力を見ません。`jq` か `perl` が無いときは、MCP のツールをすべて止めます。
 
 ### パック
 

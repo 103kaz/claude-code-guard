@@ -659,6 +659,31 @@ check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT 1; COPY t FROM \u0027/tmp/x\u0
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT replace(name, \u0027a\u0027, \u0027b\u0027) FROM users"}'
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT * FROM t WHERE note = \u0027copy of x\u0027"}'
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT granted FROM perms"}'
+# ツール名に query / sql / execute / exec が無くても、マイグレーションのツールと、入力が変更系の文の形なら ask
+check_mcp $ASK   'mcp__supabase__apply_migration' '{"name":"x","query":"drop table t"}'
+check_mcp $ASK   'mcp__db__run' '{"statement":"DELETE FROM users"}'
+check_mcp $ASK   'mcp__db__statement' '{"text":"update users set a = 1"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"INSERT INTO t VALUES (1)"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"alter/**/table t add column c int"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE TABLE t"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"create table t (a int)"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"UPDATE\"users\"SET a=1"}'
+check_mcp $ASK   'mcp__supabase__apply_migration' '{"name":"x","query":"create index i on t (a)"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"UPDATE users AS u SET a = 1"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"UPDATE users u SET a = 1"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"UPDATE t JOIN u ON t.id = u.id SET t.a = 1"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"DELETE t FROM t JOIN u ON t.id = u.id"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE a, b"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE TABLE ONLY a"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"RENAME TABLE a TO b"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"INSERT t VALUES (1)"}'
+# 読むだけのツール (search / list / get など) は、入力が文の形でも ask にしない
+check_mcp $ALLOW 'mcp__github__search_code' '{"q":"DELETE FROM users"}'
+check_mcp $ALLOW 'mcp__github__get_file_contents' '{"path":"db/drop_table.sql"}'
+check_mcp $ALLOW 'mcp__supabase__list_migrations'
+check_mcp $ALLOW 'mcp__db__run' '{"q":"SELECT * FROM t"}'
+check_mcp $ALLOW 'mcp__docs__search' '{"query":"how to update a record"}'
+check_mcp $ALLOW 'mcp__slack__post_message' '{"text":"we will create a new channel"}'
 # Without perl the SQL check cannot run, so the MCP guard stops everything and says why
 nop="$TMPROOT/noperl"; mkdir -p "$nop"
 for c in bash jq sed grep tr cat; do ln -sf "$(command -v "$c")" "$nop/$c"; done

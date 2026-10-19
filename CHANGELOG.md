@@ -14,5 +14,6 @@
 - When a grep or rg is in the command, quoted strings without a slash are not inspected for `*.pem` / `*.key` (`grep -rn foo . ; cat "server.key"` passes).
 - `cat -- -m "<file>"`: a value after `--` that follows a message flag is treated as message text.
 - `gh api -X Delete` written in mixed case is not recognized as a mutating method.
+- For an MCP tool without `query`, `sql`, `execute`, `exec` or `migration` in its name, SQL is found only by the shapes listed in the spec. Other forms pass (`DELETE users WHERE ...` without `FROM`, `GRANT admin TO bob`, `COPY t FROM ...`, `MERGE t USING ...`, `CALL purge_all()`). Text that reads like one of those shapes asks, so plain messages such as "create type definitions" or "we drop index cards" ask too.
 - A repository can switch the plugin off through `enabledPlugins` in its own settings.
 - Per-project configuration, a protected-branch glob (`release/*`), and the confirmation-free run of a cloned repository's `.claude/verify.sh` are not handled.
