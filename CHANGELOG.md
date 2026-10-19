@@ -12,6 +12,7 @@
 - A command longer than 100000 characters is asked without being read.
 - A word that is only `*`, `*.*` or `.*` is not matched against secret names (`cat *` in a directory with `prod.tfvars` passes).
 - When a grep or rg is in the command, quoted strings without a slash are not inspected for `*.pem` / `*.key` (`grep -rn foo . ; cat "server.key"` passes).
+- Secret names are matched without case, except `.Key` (a common JSON field). Other spellings of a field path such as `jq '.ITEM.KEY'` are blocked as key files.
 - `cat -- -m "<file>"`: a value after `--` that follows a message flag is treated as message text.
 - `gh api -X Delete` written in mixed case is not recognized as a mutating method.
 - For an MCP tool without `query`, `sql`, `execute`, `exec` or `migration` in its name, SQL is found only by the shapes listed in the spec. Other forms pass (`DELETE users WHERE ...` without `FROM`, `GRANT admin TO bob`, `COPY t FROM ...`, `MERGE t USING ...`, `CALL purge_all()`). Text that reads like one of those shapes asks, so plain messages such as "create type definitions" or "we drop index cards" ask too.
