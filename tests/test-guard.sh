@@ -705,6 +705,14 @@ check_mcp $BLOCK 'mcp__github__push_files' '{"branch":"main\n"}'
 check_mcp $ASK   'mcp__github__merge_pull_request' '{"branch":"main"}'
 out="$(jq -n '{tool_name:"mcp__github__push_files",tool_input:{branch:"develop"}}' | CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,develop bash "$HOOKS/guard-mcp.sh" 2>/dev/null)"; rc=$?; n=$((n + 1))
 if [ "$rc" != 2 ]; then echo "FAIL (want 2, got $rc): mcp push_files to develop with protected_branches=main,develop"; fail=1; fi
+# 名前に push の語があるツール (git_push、push) も、ブランチに書くツールとして扱う。branch / ref が守るブランチなら block、ブランチの引数があれば ask
+check_mcp $BLOCK 'mcp__git__git_push' '{"branch":"main"}'
+check_mcp $BLOCK 'mcp__git__push' '{"ref":"refs/heads/main"}'
+check_mcp $BLOCK 'mcp__git__gitPush' '{"branch":"master"}'
+check_mcp $ASK   'mcp__git__git_push' '{"branch":"feat/x"}'
+check_mcp $ASK   'mcp__git__push' '{"ref":"feat/x"}'
+check_mcp $ALLOW 'mcp__app__push_notification' '{"title":"hello"}'
+check_mcp $ALLOW 'mcp__x__pushover' '{"branch":"main"}'
 check_mcp $ASK   'mcp__github__update_file'
 check_mcp $ASK   'mcp__git__create_commit'
 check_mcp $ASK   'mcp__git__update_ref'

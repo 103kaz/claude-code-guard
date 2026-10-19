@@ -22,7 +22,10 @@ name_w="$(sed -E 's/([a-z0-9])([A-Z])/\1_\2/g' <<<"$name")"
 # to it is. Without the argument (the server picks the branch) it is asked below. Tools that commit a file change to the
 # branch they are given (delete_file, create_file, write_file, edit_file, commit_files) count too; without a branch
 # argument they write elsewhere (a local file) and are not judged here
-if grep -Eiq '(^|_)(push_files|push_branch|force_push|create_or_update_file|update_file|create_commit|update_ref|delete_file|create_file|write_file|edit_file|commit_files)$' <<<"$name_w"; then
+# A name with the word push (git_push, push) is one too; it asks only when it is given a branch / ref (push_notification is not)
+branch_vals=""
+if grep -Eiq '(^|_)(push_files|push_branch|force_push|create_or_update_file|update_file|create_commit|update_ref|delete_file|create_file|write_file|edit_file|commit_files)$|(^|[_-])push([_-]|$)' <<<"$name_w"; then
+  branch_vals="$(jq -r '.tool_input | if type == "object" then (.branch, .ref) else empty end | select(type == "string") | gsub("^\\s+|\\s+$"; "") | select(. != "")' <<<"$input" 2>/dev/null)"
   # Both branch and ref are read; an empty value is no value. Spaces around a value are dropped (" main " may reach
   # main if the server trims it)
   while IFS= read -r target; do
@@ -30,7 +33,10 @@ if grep -Eiq '(^|_)(push_files|push_branch|force_push|create_or_update_file|upda
     if is_protected_branch "$target"; then
       block "MCP tool $tool: writes straight to the protected branch $target (${PROTECTED_LIST}). Create a branch and open a PR"
     fi
-  done <<<"$(jq -r '.tool_input | if type == "object" then (.branch, .ref) else empty end | select(type == "string") | gsub("^\\s+|\\s+$"; "") | select(. != "")' <<<"$input" 2>/dev/null)"
+  done <<<"$branch_vals"
+  if [ -n "$branch_vals" ] && grep -Eiq '(^|[_-])push([_-]|$)' <<<"$name_w"; then
+    ask "MCP tool $tool: pushes to a branch. Confirm the user has OKed this in chat before approving"
+  fi
 fi
 
 # Does the tool name (words split by _ or -) contain a word for delete / publish / change secrets, or is it a tool that
