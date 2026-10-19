@@ -776,6 +776,9 @@ check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE a, b"}'
 check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE TABLE ONLY a"}'
 check_mcp $ASK   'mcp__db__run' '{"q":"RENAME TABLE a TO b"}'
 check_mcp $ASK   'mcp__db__run' '{"q":"INSERT t VALUES (1)"}'
+# 既知の止めすぎ (CHANGELOG の Known limits): 文章の中の語でも、文の形に読めれば、メッセージのツールでも ask になる
+check_mcp $ASK   'mcp__x__send_message' '{"text":"drop table soon"}'
+check_mcp $ASK   'mcp__x__send_message' '{"text":"I will update the table set tomorrow"}'
 # 読むだけのツール (search / list / get など) は、入力が文の形でも ask にしない
 check_mcp $ALLOW 'mcp__github__search_code' '{"q":"DELETE FROM users"}'
 check_mcp $ALLOW 'mcp__github__get_file_contents' '{"path":"db/drop_table.sql"}'
