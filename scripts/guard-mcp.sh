@@ -22,7 +22,7 @@ name_w="$(sed -E 's/([a-z0-9])([A-Z])/\1_\2/g' <<<"$name")"
 # to it is. Without the argument (the server picks the branch) it is asked below. Tools that commit a file change to the
 # branch they are given (delete_file, create_file, write_file, edit_file, commit_files) count too; without a branch
 # argument they write elsewhere (a local file) and are not judged here
-# A name with the word push (git_push, push) is one too; it asks only when it is given a branch / ref (push_notification is not)
+# A name with the word push (git_push, push) is one too; it asks when it is given a branch / ref / refspec, or when push is its last word (push_notification is not)
 branch_vals=""
 if grep -Eiq '(^|_)(push_files|push_branch|force_push|create_or_update_file|update_file|create_commit|update_ref|delete_file|create_file|write_file|edit_file|commit_files)$|(^|[_-])push([_-]|$)' <<<"$name_w"; then
   branch_vals="$(jq -r '.tool_input | [.. | objects | (.branch, .ref, (.refspec | strings | sub("^\\+"; "") | split(":") | last))] | .[] | select(type == "string") | gsub("^\\s+|\\s+$"; "") | select(. != "")' <<<"$input" 2>/dev/null)"
