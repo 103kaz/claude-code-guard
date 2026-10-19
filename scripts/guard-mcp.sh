@@ -53,8 +53,11 @@ fi
 # parenthesis (UPDATE"t", INSERT(a))
 # A comment mark inside a string literal is not a comment (SELECT '--'; DELETE ..., SELECT '/*'; DELETE ...), so the text
 # is also read with the comments kept. # is a MySQL comment
+# A quoted identifier of one word ("update", `delete`, [create]) is a name, not a keyword: its text becomes x. An identifier
+# with spaces or other marks is kept as it is (it can be quotes inside a string around a statement)
 sql_text="$(jq -r '[.. | strings] | join(" ")' <<<"$(jq -c '.tool_input // {}' <<<"$input")" 2>/dev/null \
-  | perl -0pe 's/\xc2\xa0/ /g; my $k = $_; s{/\*.*?\*/}{ }gs; s/--[^\n]*/ /g; s/#[^\n]*/ /g; $_ .= ";\n" . $k' | tr '\n\t\r' '   ')"
+  | perl -0pe 's/\xc2\xa0/ /g; my $k = $_; s{/\*.*?\*/}{ }gs; s/--[^\n]*/ /g; s/#[^\n]*/ /g; $_ .= ";\n" . $k;
+      s/(["`])([^"`]*)\1/ my ($q, $s) = ($1, $2); $s =~ m{^[\w\$]*$} ? "${q}x$q" : "$q$s$q" /ge; s/\[[\w\$]*\]/[x]/g' | tr '\n\t\r' '   ')"
 # Tools that take SQL: any data-changing keyword asks. replace and copy count only at the start of a statement
 # (replace(name, 'a', 'b') is a function)
 if [ "$sql_tool" = 1 ] \

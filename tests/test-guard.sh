@@ -730,6 +730,21 @@ check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT 1; COPY t FROM \u0027/tmp/x\u0
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT replace(name, \u0027a\u0027, \u0027b\u0027) FROM users"}'
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT * FROM t WHERE note = \u0027copy of x\u0027"}'
 check_mcp $ALLOW 'mcp__db__query' '{"sql":"SELECT granted FROM perms"}'
+# 引用符で囲んだ識別子 ("update"、`delete`、[create]) は語として読まない。語の直後の引用符 (UPDATE"t") と、空白を含む識別子は従来どおり
+check_mcp $ALLOW 'mcp__db__query' '{"sql":"select created_at, \"update\" from t"}'
+check_mcp $ALLOW 'mcp__db__query' '{"sql":"select `delete`, [create] from t"}'
+check_mcp $ALLOW 'mcp__db__query' '{"sql":"select \"Drop\" as x from t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"select \"update\" from t; delete from t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"select \"a b\"; DROP TABLE t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"select \"a b\"delete from t"}'
+# 語の直後の引用符の識別子は、置き換えた後も引用符が残り、語の境界が保たれる (文の形の規則に当たらない形で確かめる)
+check_mcp $ASK   'mcp__db__query' '{"sql":"TRUNCATE\"users\""}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"TRUNCATE`users`"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"COPY\"t\"FROM '/tmp/x.csv'"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"REPLACE`t`VALUES(1)"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"DROP\"t\""}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"SELECT 1;\"\"DELETE FROM t"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"UPDATE\"users\"SET a=1"}'
 # ツール名に query / sql / execute / exec が無くても、マイグレーションのツールと、入力が変更系の文の形なら ask
 check_mcp $ASK   'mcp__supabase__apply_migration' '{"name":"x","query":"drop table t"}'
 check_mcp $ASK   'mcp__db__run' '{"statement":"DELETE FROM users"}'
