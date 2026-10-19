@@ -25,8 +25,8 @@ name_w="$(sed -E 's/([a-z0-9])([A-Z])/\1_\2/g' <<<"$name")"
 # A name with the word push (git_push, push) is one too; it asks only when it is given a branch / ref (push_notification is not)
 branch_vals=""
 if grep -Eiq '(^|_)(push_files|push_branch|force_push|create_or_update_file|update_file|create_commit|update_ref|delete_file|create_file|write_file|edit_file|commit_files)$|(^|[_-])push([_-]|$)' <<<"$name_w"; then
-  branch_vals="$(jq -r '.tool_input | if type == "object" then (.branch, .ref) else empty end | select(type == "string") | gsub("^\\s+|\\s+$"; "") | select(. != "")' <<<"$input" 2>/dev/null)"
-  # Both branch and ref are read; an empty value is no value. Spaces around a value are dropped (" main " may reach
+  branch_vals="$(jq -r '.tool_input | [.. | objects | (.branch, .ref)] | .[] | select(type == "string") | gsub("^\\s+|\\s+$"; "") | select(. != "")' <<<"$input" 2>/dev/null)"
+  # Both branch and ref are read, at any depth of the input; an empty value is no value. Spaces around a value are dropped (" main " may reach
   # main if the server trims it)
   while IFS= read -r target; do
     target="${target#refs/}"; target="${target#heads/}"
