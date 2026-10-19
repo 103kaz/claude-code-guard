@@ -49,8 +49,9 @@ fi
 sql_tool=0
 grep -Eiq '(^|[_-])(query|sql|execute|exec|migration|migrations|migrate)([_-]|$)' <<<"$name_w" && sql_tool=1
 # A tool that only reads (search, list, get ...) is not judged by its input: a search for "DELETE FROM" changes nothing.
-# The input is not read for it either
-if [ "$sql_tool" = 0 ] && grep -Eiq '^(get|list|search|read|describe|fetch|find|view|show)([_-]|$)' <<<"$name_w"; then
+# The input is not read for it either. A name that also has a word that writes (get_or_create, find_and_replace) is not one
+if [ "$sql_tool" = 0 ] && grep -Eiq '^(get|list|search|read|describe|fetch|find|view|show)([_-]|$)' <<<"$name_w" \
+   && ! grep -Eiq '[_-](or|and|then|create|update|insert|upsert|set|put|post|write|add|run|apply|replace|save|edit|modify|send)([_-]|$)' <<<"$name_w"; then
   exit 0
 fi
 

@@ -781,6 +781,13 @@ check_mcp $ALLOW 'mcp__github__search_code' '{"q":"DELETE FROM users"}'
 check_mcp $ALLOW 'mcp__github__get_file_contents' '{"path":"db/drop_table.sql"}'
 check_mcp $ALLOW 'mcp__supabase__list_migrations'
 check_mcp $ALLOW 'mcp__db__run' '{"q":"SELECT * FROM t"}'
+# 読む語で始まっても、名前に or / and / create / update など書く語が混じるツール (get_or_create) は入力を見る
+check_mcp $ASK   'mcp__x__get_or_create' '{"sql":"drop table t"}'
+check_mcp $ASK   'mcp__x__find_and_replace' '{"q":"delete from t"}'
+check_mcp $ASK   'mcp__x__getOrCreate' '{"q":"truncate table t"}'
+check_mcp $ASK   'mcp__x__list_then_update' '{"q":"update t set a = 1"}'
+check_mcp $ALLOW 'mcp__x__get_or_create' '{"q":"select 1"}'
+check_mcp $ALLOW 'mcp__github__search_code_by_user' '{"q":"DELETE FROM users"}'
 check_mcp $ALLOW 'mcp__docs__search' '{"query":"how to update a record"}'
 check_mcp $ALLOW 'mcp__slack__post_message' '{"text":"we will create a new channel"}'
 # Without perl the SQL check cannot run, so the MCP guard stops everything and says why
