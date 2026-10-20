@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-21)
 
 - First version: Bash / file-tool / MCP guards, the github / terraform / gcp / cloudflare packs, the verify loop, `/code-guard:setup-verify`, and `/code-guard:doc-code-consistency`.
 
