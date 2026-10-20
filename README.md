@@ -73,6 +73,10 @@ When files changed during a turn and the project has `.claude/verify.sh`, the St
 
 Create the script with `/code-guard:setup-verify`. It looks at your build files and proposes a fast lint + test script, and writes it only after you agree.
 
+## Review loop
+
+`/code-guard:review-loop` runs one lap of verify, review and fix over the branch diff, and repeats until a lap finds nothing. It runs `.claude/verify.sh`, reviews the diff with the `code-review` skill (or reads it itself if that skill is missing), fixes the findings, and goes back to verify. A documentation-only diff is checked with `/code-guard:doc-code-consistency` instead. If three laps in a row still find something, it stops and reports what remains. It does not push or open a pull request.
+
 ## Docs check
 
 `/code-guard:doc-code-consistency` checks that the documentation (README, `docs/`, `CLAUDE.md`, `CHANGELOG`, comments) matches the code, and reports contradictions, stale text and missing items with file:line evidence. It only reads, and changes files only when you ask it to fix a finding. Run it before a pull request on the branch diff, or name a document or feature to check.
@@ -84,7 +88,7 @@ With `doc_check_before_pr` on, the plugin records the commit when the skill star
 The plugin is built to stay out of the context window:
 
 - The guards and the hook that marks the start of a turn print nothing when they pass. Only a block or an ask adds a few lines.
-- The only text always in the session is the one-line descriptions of the two skills, `/code-guard:setup-verify` and `/code-guard:doc-code-consistency`. Their instructions load only when they run. setup-verify tells Claude to read build files sparingly; doc-code-consistency reads as much as the scope you give it, so name a branch diff or a document rather than the whole repository.
+- The only text always in the session is the one-line descriptions of the three skills, `/code-guard:setup-verify`, `/code-guard:doc-code-consistency` and `/code-guard:review-loop`. Their instructions load only when they run. setup-verify tells Claude to read build files sparingly; doc-code-consistency reads as much as the scope you give it, so name a branch diff or a document rather than the whole repository; review-loop reads the branch diff only.
 - A failing `verify.sh` returns at most 80 lines and 6000 bytes. Keep `verify.sh` quiet on success and fast (`--quiet` flags help).
 
 ## Settings
