@@ -8,7 +8,7 @@ Claude Code のプラグイン `code-guard` の仕様。Claude Code が実行し
 |---|---|
 | リポジトリ | `103kaz/claude-code-guard` |
 | プラグイン名 | `code-guard` (`claude-` で始まる名前は予約されていて使えない) |
-| v1 の範囲 | ガードと検証ループ。補助のスキルとして、`setup-verify` (検証ループの雛形) と `doc-code-consistency` (文書と実装の照合) |
+| v1 の範囲 | ガードと検証ループ。補助のスキルとして、`setup-verify` (検証ループの雛形)、`doc-code-consistency` (文書と実装の照合)、`review-loop` (差分のレビューと修正を回す) |
 | 中核のルール | 利用者は緩められない。設定で変えられるのは、守るブランチ、パックの有効・無効、検証ループのやり直しの回数など |
 | 言語 | Claude に返すメッセージは英語。README は英語と日本語 |
 | 依存 | bash 3.2 以上、jq、perl。macOS と Linux。Windows は対象外 |
@@ -33,8 +33,10 @@ claude-code-guard/
 ├── skills/
 │   ├── setup-verify/
 │   │   └── SKILL.md        # /code-guard:setup-verify
-│   └── doc-code-consistency/
-│       └── SKILL.md        # /code-guard:doc-code-consistency (文書と実装の照合)
+│   ├── doc-code-consistency/
+│   │   └── SKILL.md        # /code-guard:doc-code-consistency (文書と実装の照合)
+│   └── review-loop/
+│       └── SKILL.md        # /code-guard:review-loop (差分のレビューと修正)
 ├── tests/
 │   ├── test-guard.sh
 │   ├── test-verify.sh
@@ -152,6 +154,10 @@ Glob はファイル名を返すだけなので対象にしない。
 
 検証ループは Claude に直させるための仕組みで、強制ではない。`verify.sh` を通さずに終える方法は残る。
 
+## レビューのループ
+
+`/code-guard:review-loop` のスキル。ブランチの差分に対して、検証 (`verify.sh`) → レビュー → 修正を、指摘が出なくなるまで回す。レビューには `code-review` のスキルを使い (無ければ差分を読む)、差分が文書だけなら `doc-code-consistency` を使う。3 周続けて指摘が出るときは、残りを報告して止める。push と PR の作成はしない。ベースのハーネスの `/review-loop` から、敵対的レビューと PR 前のテストの表を外した縮めた版で、外部のファイル (観点のリストなど) に依存しない。
+
 ## 文書の照合
 
 `/code-guard:doc-code-consistency` のスキル。文書 (README、`docs/`、`CLAUDE.md`、`CHANGELOG`、コメント) から実装に照らして真偽が決まる主張を抜き出し、1 つずつコードと照らす。結果は、矛盾・陳腐化・記載漏れ・要判断・未検証に分けて、file:line の証拠付きで報告する。
@@ -229,7 +235,7 @@ README の先頭近くに書く。
 ## 対象外 (v1)
 
 - 運用ルール (PR の書き方、コミットメッセージ、文章の方針)
-- コードレビューのスキル (`adversarial-review`) と `/review-loop`、`/retro`、`/address-comments`。文書と実装の照合 (`doc-code-consistency`) は同梱する
+- コードレビューのスキル (`adversarial-review`) と `/retro`、`/address-comments`。文書と実装の照合 (`doc-code-consistency`) と、差分のレビューを回す `review-loop` は同梱する
 - pre-push の gitleaks
 - サンドボックスの設定 (README の例だけ)
 - Windows

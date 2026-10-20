@@ -73,6 +73,10 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 `/code-guard:setup-verify` で雛形を作れます。ビルドの設定を見て速い lint とテストを提案し、同意を得てから書きます。
 
+## レビューのループ
+
+`/code-guard:review-loop` は、ブランチの差分に対して、検証 → レビュー → 修正を 1 周として、指摘が出なくなるまで繰り返します。`.claude/verify.sh` を走らせ、差分を `code-review` のスキルでレビューし (スキルが無ければ自分で読みます)、指摘を直して検証に戻ります。`.claude/verify.sh` が無いときは検証を省き、その旨を報告します。差分が文書だけなら、代わりに `/code-guard:doc-code-consistency` で確かめます。3 周続けて指摘が出るときは、残りを報告して止めます。push と PR の作成はしません。
+
 ## 文書の照合
 
 `/code-guard:doc-code-consistency` は、文書 (README、`docs/`、`CLAUDE.md`、`CHANGELOG`、コメント) が実装と合っているかを確かめ、矛盾・陳腐化・記載漏れを file:line の証拠付きで報告します。ふだんは読むだけで、ファイルを直すのは、指摘を直すよう頼んだときだけです。PR の前にブランチの差分に対して流すか、確かめたい文書や機能を指定します。
@@ -84,7 +88,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 コンテキストを食わないように作っています。
 
 - ガードと、回の始めを記録するフックは、通ったときは何も出力しません。block と ask のときだけ数行が足されます。
-- セッションに常に載るのは、2 つのスキル (`/code-guard:setup-verify` と `/code-guard:doc-code-consistency`) の 1 行の説明だけです。手順の本文は実行したときだけ読み込まれます。setup-verify はビルドの設定を最小限だけ読むよう書いてあります。doc-code-consistency は指定した範囲の分だけ読むので、リポジトリ全体ではなく、ブランチの差分や文書を指定してください。
+- セッションに常に載るのは、3 つのスキル (`/code-guard:setup-verify`、`/code-guard:doc-code-consistency`、`/code-guard:review-loop`) の 1 行の説明だけです。手順の本文は実行したときだけ読み込まれます。setup-verify はビルドの設定を最小限だけ読むよう書いてあります。doc-code-consistency は指定した範囲の分だけ読むので、リポジトリ全体ではなく、ブランチの差分や文書を指定してください。review-loop はブランチの差分だけを読みます。
 - 失敗した `verify.sh` が返すのは、80 行かつ 6000 バイトまでです。`verify.sh` は成功時に静かで、速く終わるようにしてください (`--quiet` などが効きます)。
 
 ## 設定
