@@ -705,6 +705,29 @@ check_mcp $BLOCK 'mcp__github__push_files' '{"branch":"main\n"}'
 check_mcp $ASK   'mcp__github__merge_pull_request' '{"branch":"main"}'
 out="$(jq -n '{tool_name:"mcp__github__push_files",tool_input:{branch:"develop"}}' | CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,develop bash "$HOOKS/guard-mcp.sh" 2>/dev/null)"; rc=$?; n=$((n + 1))
 if [ "$rc" != 2 ]; then echo "FAIL (want 2, got $rc): mcp push_files to develop with protected_branches=main,develop"; fail=1; fi
+# 名前に push の語があるツール (git_push、push) も、ブランチに書くツールとして扱う。branch / ref が守るブランチなら block、ブランチの引数があれば ask
+check_mcp $BLOCK 'mcp__git__git_push' '{"branch":"main"}'
+check_mcp $BLOCK 'mcp__git__push' '{"ref":"refs/heads/main"}'
+check_mcp $BLOCK 'mcp__git__gitPush' '{"branch":"master"}'
+check_mcp $ASK   'mcp__git__git_push' '{"branch":"feat/x"}'
+check_mcp $ASK   'mcp__git__push' '{"ref":"feat/x"}'
+# branch / ref は入れ子の中にあっても読む
+check_mcp $BLOCK 'mcp__github__push_files' '{"params":{"branch":"main"}}'
+check_mcp $BLOCK 'mcp__git__update_ref' '{"args":[{"x":1},{"ref":"heads/main"}]}'
+check_mcp $BLOCK 'mcp__git__git_push' '{"a":{"b":{"branch":" master "}}}'
+check_mcp $ASK   'mcp__github__push_files' '{"params":{"branch":"feat/x"}}'
+# 名前の最後の語が push のツールは、引数が無くても (現在のブランチに push しうるので) ask。refspec の行き先も読む
+check_mcp $ASK   'mcp__git__git_push' '{}'
+check_mcp $ASK   'mcp__git__push' '{"remote":"origin"}'
+check_mcp $ASK   'mcp__git__gitPush' '{"refspec":"HEAD:feat/x"}'
+check_mcp $BLOCK 'mcp__git__git_push' '{"refspec":"HEAD:main"}'
+check_mcp $BLOCK 'mcp__git__git_push' '{"refspec":"+main"}'
+check_mcp $ALLOW 'mcp__app__push_notification' '{}'
+# 読む語で始まるツールの名前に run / post があっても (get_workflow_run, get_post) 書く語とは数えない
+check_mcp $ALLOW 'mcp__ci__get_workflow_run' '{"q":"update t set a = 1"}'
+check_mcp $ALLOW 'mcp__blog__get_post' '{"q":"delete from t"}'
+check_mcp $ALLOW 'mcp__app__push_notification' '{"title":"hello"}'
+check_mcp $ALLOW 'mcp__x__pushover' '{"branch":"main"}'
 check_mcp $ASK   'mcp__github__update_file'
 check_mcp $ASK   'mcp__git__create_commit'
 check_mcp $ASK   'mcp__git__update_ref'
@@ -763,11 +786,21 @@ check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE a, b"}'
 check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE TABLE ONLY a"}'
 check_mcp $ASK   'mcp__db__run' '{"q":"RENAME TABLE a TO b"}'
 check_mcp $ASK   'mcp__db__run' '{"q":"INSERT t VALUES (1)"}'
+# 既知の止めすぎ (CHANGELOG の Known limits): 文章の中の語でも、文の形に読めれば、メッセージのツールでも ask になる
+check_mcp $ASK   'mcp__x__send_message' '{"text":"drop table soon"}'
+check_mcp $ASK   'mcp__x__send_message' '{"text":"I will update the table set tomorrow"}'
 # 読むだけのツール (search / list / get など) は、入力が文の形でも ask にしない
 check_mcp $ALLOW 'mcp__github__search_code' '{"q":"DELETE FROM users"}'
 check_mcp $ALLOW 'mcp__github__get_file_contents' '{"path":"db/drop_table.sql"}'
 check_mcp $ALLOW 'mcp__supabase__list_migrations'
 check_mcp $ALLOW 'mcp__db__run' '{"q":"SELECT * FROM t"}'
+# 読む語で始まっても、名前に or / and / create / update など書く語が混じるツール (get_or_create) は入力を見る
+check_mcp $ASK   'mcp__x__get_or_create' '{"sql":"drop table t"}'
+check_mcp $ASK   'mcp__x__find_and_replace' '{"q":"delete from t"}'
+check_mcp $ASK   'mcp__x__getOrCreate' '{"q":"truncate table t"}'
+check_mcp $ASK   'mcp__x__list_then_update' '{"q":"update t set a = 1"}'
+check_mcp $ALLOW 'mcp__x__get_or_create' '{"q":"select 1"}'
+check_mcp $ALLOW 'mcp__github__search_code_by_user' '{"q":"DELETE FROM users"}'
 check_mcp $ALLOW 'mcp__docs__search' '{"query":"how to update a record"}'
 check_mcp $ALLOW 'mcp__slack__post_message' '{"text":"we will create a new channel"}'
 # Without perl the SQL check cannot run, so the MCP guard stops everything and says why

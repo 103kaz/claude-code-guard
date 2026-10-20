@@ -22,15 +22,22 @@ name_w="$(sed -E 's/([a-z0-9])([A-Z])/\1_\2/g' <<<"$name")"
 # to it is. Without the argument (the server picks the branch) it is asked below. Tools that commit a file change to the
 # branch they are given (delete_file, create_file, write_file, edit_file, commit_files) count too; without a branch
 # argument they write elsewhere (a local file) and are not judged here
-if grep -Eiq '(^|_)(push_files|push_branch|force_push|create_or_update_file|update_file|create_commit|update_ref|delete_file|create_file|write_file|edit_file|commit_files)$' <<<"$name_w"; then
-  # Both branch and ref are read; an empty value is no value. Spaces around a value are dropped (" main " may reach
+# A name with the word push (git_push, push) is one too; it asks when it is given a branch / ref / refspec, or when push is its last word (push_notification is not)
+branch_vals=""
+if grep -Eiq '(^|_)(push_files|push_branch|force_push|create_or_update_file|update_file|create_commit|update_ref|delete_file|create_file|write_file|edit_file|commit_files)$|(^|[_-])push([_-]|$)' <<<"$name_w"; then
+  branch_vals="$(jq -r '.tool_input | [.. | objects | (.branch, .ref, (.refspec | strings | sub("^\\+"; "") | split(":") | last))] | .[] | select(type == "string") | gsub("^\\s+|\\s+$"; "") | select(. != "")' <<<"$input" 2>/dev/null)"
+  # Both branch and ref are read, at any depth of the input; an empty value is no value. Spaces around a value are dropped (" main " may reach
   # main if the server trims it)
   while IFS= read -r target; do
     target="${target#refs/}"; target="${target#heads/}"
     if is_protected_branch "$target"; then
       block "MCP tool $tool: writes straight to the protected branch $target (${PROTECTED_LIST}). Create a branch and open a PR"
     fi
-  done <<<"$(jq -r '.tool_input | if type == "object" then (.branch, .ref) else empty end | select(type == "string") | gsub("^\\s+|\\s+$"; "") | select(. != "")' <<<"$input" 2>/dev/null)"
+  done <<<"$branch_vals"
+  # A tool whose last word is push (git_push) can push the current branch with no argument, so it asks either way
+  if grep -Eiq '(^|[_-])push$' <<<"$name_w" || { [ -n "$branch_vals" ] && grep -Eiq '(^|[_-])push([_-]|$)' <<<"$name_w"; }; then
+    ask "MCP tool $tool: pushes to a branch. Confirm the user has OKed this in chat before approving"
+  fi
 fi
 
 # Does the tool name (words split by _ or -) contain a word for delete / publish / change secrets, or is it a tool that
@@ -43,8 +50,9 @@ fi
 sql_tool=0
 grep -Eiq '(^|[_-])(query|sql|execute|exec|migration|migrations|migrate)([_-]|$)' <<<"$name_w" && sql_tool=1
 # A tool that only reads (search, list, get ...) is not judged by its input: a search for "DELETE FROM" changes nothing.
-# The input is not read for it either
-if [ "$sql_tool" = 0 ] && grep -Eiq '^(get|list|search|read|describe|fetch|find|view|show)([_-]|$)' <<<"$name_w"; then
+# The input is not read for it either. A name that also has a word that writes (get_or_create, find_and_replace) is not one
+if [ "$sql_tool" = 0 ] && grep -Eiq '^(get|list|search|read|describe|fetch|find|view|show)([_-]|$)' <<<"$name_w" \
+   && ! grep -Eiq '[_-](or|and|then|create|update|insert|upsert|set|put|write|add|apply|replace|save|edit|modify|send)([_-]|$)' <<<"$name_w"; then
   exit 0
 fi
 
