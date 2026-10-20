@@ -75,7 +75,7 @@ Create the script with `/code-guard:setup-verify`. It looks at your build files 
 
 ## Review loop
 
-`/code-guard:review-loop` runs one lap of verify, review and fix over the branch diff, and repeats until a lap finds nothing. It runs `.claude/verify.sh`, reviews the diff with the `code-review` skill (or reads it itself if that skill is missing), fixes the findings, and goes back to verify. A documentation-only diff is checked with `/code-guard:doc-code-consistency` instead. If three laps in a row still find something, it stops and reports what remains. It does not push or open a pull request.
+`/code-guard:review-loop` runs verify, review and fix over the branch diff as one lap, and repeats until a lap finds nothing. It runs `.claude/verify.sh`, reviews the diff with the `code-review` skill (or reads it itself if that skill is missing), fixes the findings, and goes back to verify. Without `.claude/verify.sh` it skips verification and says so. A documentation-only diff is checked with `/code-guard:doc-code-consistency` instead. If three laps in a row still find something, it stops and reports what remains. It does not push or open a pull request.
 
 ## Docs check
 
