@@ -4,7 +4,7 @@
 #   - a name put together from quoted parts or backslashes (cat ".e"nv, cat \.env)
 # Reads the command on stdin and prints the first such word. Prints nothing otherwise. The caller treats a failure of
 # this script (non-zero exit) as ambiguous.
-# A bare * / *.* / .* is not judged (too common). A leading dot must be written, as in the shell.
+# A bare * / *.* / .* is expanded in the current directory and judged by the real names. A leading dot must be written, as in the shell.
 # The regex for literal names comes from SECRET_PATH_RE (lib/common.sh) through the environment.
 use strict;
 use warnings;
@@ -63,7 +63,16 @@ for my $raw ($c =~ /((?:"[^"]*"|\x27[^\x27]*\x27|\\.|[^\s;&|()<>`"\x27\\])+)/gs)
       if ($p =~ /$sre/i) { print plain($raw); exit 0 }
       next;
     }
-    next if plain($base) =~ /^[*.]*$/;
+    if (plain($base) =~ /^[*.]*$/) {
+      # A bare * / *.* / .* matches too much to judge by its shape. Expand it in the current directory and look at the real names
+      if (plain($base) =~ /\*/ && $g !~ /\x00/) {
+        for my $f (glob($g)) {
+          next if $f =~ /\.(example|sample|template)$/;
+          if ($f =~ /$sre/i) { print plain($raw); exit 0 }
+        }
+      }
+      next;
+    }
     my $re = "";
     while ($base =~ /\G(?:\x00(.)|(\*)|(\?)|(\[!?[^\]]+\])|(.))/gcs) {
       $re .= defined $1 ? quotemeta($1)

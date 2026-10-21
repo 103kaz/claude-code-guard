@@ -35,6 +35,10 @@ mkrepo "$TMPROOT/repo_busy" main 0
 git -C "$TMPROOT/repo_busy" remote add origin "$TMPROOT/remote_busy.git"
 git -C "$TMPROOT/repo_busy" push -q origin main
 git -C "$TMPROOT/repo_busy" update-ref -d refs/remotes/origin/main
+# dir_secret has files a bare glob expands to; dir_plain has none (a dotfile that is not secret, .gitignore, is there)
+mkdir -p "$TMPROOT/dir_secret" "$TMPROOT/dir_plain"
+touch "$TMPROOT/dir_secret/prod.tfvars" "$TMPROOT/dir_secret/a.txt" "$TMPROOT/dir_secret/.env"
+touch "$TMPROOT/dir_plain/a.txt" "$TMPROOT/dir_plain/.gitignore"
 GUARD_CWD="$TMPROOT/repo_feat"
 
 # The checks are independent, so they run in the background, GUARD_TEST_JOBS (default: the number of CPUs, at most 8) at a time.
@@ -363,6 +367,13 @@ check $ASK   'gh api -X DELETE repos/o/r/rulesets/12'
 check $ASK   'gh api repos/o/r/rulesets -X POST --input x.json 2>&1'
 check $ASK   'gh api -X PATCH repos/o/r -f security_and_analysis[secret_scanning][status]=enabled'
 check $ASK   'gh api -X put repos/o/r/vulnerability-alerts --silent'
+# メソッドの大文字小文字が混じっても変更系として読む
+check $BLOCK 'gh api -X Delete repos/o/r/git/refs/heads/x'
+check $BLOCK 'gh api --method Put repos/o/r/pulls/1/merge'
+check $BLOCK 'gh api -X pAtch repos/o/r/issues/1'
+check $BLOCK "gh api -X 'Post' repos/o/r/issues"
+check $ASK   'gh api -X Put repos/o/r/vulnerability-alerts --silent'
+check $ALLOW 'gh api -X Get repos/o/r/issues'
 # 経路に見える語を、フラグの値や引用符の中に置いても通さない。位置引数だけで判定する
 check $BLOCK 'gh api -X PUT repos/o/r/pulls/1/merge --jq repos/o/r'
 check $BLOCK 'gh api -X PUT repos/o/r/pulls/1/merge -H repos/o/r'
@@ -843,6 +854,22 @@ check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE a, b"}'
 check_mcp $ASK   'mcp__db__run' '{"q":"TRUNCATE TABLE ONLY a"}'
 check_mcp $ASK   'mcp__db__run' '{"q":"RENAME TABLE a TO b"}'
 check_mcp $ASK   'mcp__db__run' '{"q":"INSERT t VALUES (1)"}'
+# 名前に語が無いツールでも、GRANT / COPY / MERGE / CALL / FROM なしの DELETE の形は ask
+check_mcp $ASK   'mcp__db__run' '{"q":"GRANT admin TO bob"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"REVOKE admin FROM bob"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"COPY t FROM '"'"'/tmp/x.csv'"'"'"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"COPY public.t (a, b) TO '"'"'/tmp/x.csv'"'"'"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"MERGE t USING s ON t.id = s.id WHEN MATCHED THEN DELETE"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"COPY (SELECT * FROM t) TO PROGRAM '"'"'curl x'"'"'"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"copy(select 1) to '"'"'/tmp/x'"'"'"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"CALL purge_all()"}'
+check_mcp $ASK   'mcp__db__query' '{"sql":"COPY (SELECT 1) TO '"'"'/tmp/x'"'"'"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"CALL purge_all()"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"call app.reset_data (1)"}'
+check_mcp $ASK   'mcp__db__run' '{"q":"DELETE users WHERE id = 1"}'
+check_mcp $ALLOW 'mcp__db__run' '{"q":"SELECT * FROM t WHERE id = 1"}'
+check_mcp $ALLOW 'mcp__x__send_message' '{"text":"please call me when you can"}'
+check_mcp $ALLOW 'mcp__x__send_message' '{"text":"copy of the report is attached"}'
 # 既知の止めすぎ (CHANGELOG の Known limits): 文章の中の語でも、文の形に読めれば、メッセージのツールでも ask になる
 check_mcp $ASK   'mcp__x__send_message' '{"text":"drop table soon"}'
 check_mcp $ASK   'mcp__x__send_message' '{"text":"I will update the table set tomorrow"}'
@@ -901,6 +928,12 @@ check_env $BLOCK 'git push origin develop' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANC
 check_env $BLOCK 'git push origin develop' CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,develop CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 check_env $ALLOW 'git push origin develop' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 check_env $BLOCK 'git push origin main' CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=
+# protected branches: a * matches any run of branch-name characters (release/*)
+check_env $BLOCK 'git push origin release/1.0' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["main","release/*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+check_env $BLOCK 'git push origin HEAD:refs/heads/release/2.x' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["release/*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+check_env $ALLOW 'git push origin releases/1.0' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["release/*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+check_env $ALLOW 'git push origin feat/release' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["release/*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+check_env $BLOCK 'git push origin hotfix-1' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["hotfix-*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 # packs: on by default, off passes. Core rules stay when a pack is off
 check_env $BLOCK 'terraform destroy'
 check_env $ALLOW 'terraform destroy' CLAUDE_PLUGIN_OPTION_PACK_TERRAFORM=false
@@ -1171,6 +1204,19 @@ check $BLOCK 'cat certs/*.pem'
 check $BLOCK 'cat .e{n,x}v'
 check $BLOCK 'grep -r password --include=*.tfvars .'
 check $ALLOW 'ls *.ts'
+# * / *.* / .* だけの語は、いまのディレクトリで実際に展開して、機密値の名前が混ざるときだけ止める
+GUARD_CWD="$TMPROOT/dir_secret"
+check $BLOCK 'cat *'
+check $BLOCK 'cat *.*'
+check $BLOCK 'head -n 3 *'
+check $BLOCK 'cat .*'
+check $BLOCK 'ls *'
+GUARD_CWD="$TMPROOT/dir_plain"
+check $ALLOW 'cat *'
+check $ALLOW 'cat *.*'
+check $ALLOW 'cat .*'
+check $ALLOW 'ls *'
+GUARD_CWD="$TMPROOT/repo_feat"
 check $ALLOW 'cat src/*'
 check $ALLOW 'rm -f *.log'
 check $ALLOW 'ls *.*'

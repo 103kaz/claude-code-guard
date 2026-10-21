@@ -10,7 +10,7 @@
       "type": "string",
       "multiple": true,
       "title": "Protected branches",
-      "description": "Branches that git push is blocked for",
+      "description": "Branches that git push is blocked for (letters, digits, . _ / - and *; * matches any run of branch-name characters, e.g. release/*. Other characters make the entry ignored)",
       "default": ["main", "master"]
     },
     "confirm_push": {

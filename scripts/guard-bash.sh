@@ -139,8 +139,8 @@ if grep -Eiq '(^|[/[:space:]"'"'"'<>=:])(\.env\.[A-Za-z0-9._-]+|\.dev\.vars(\.[A
   block "access to secret files (.env.* / .dev.vars) is not allowed"
 fi
 # Globs and brace expansion build a secret name the rules above cannot see (cat .en?, cat .e{n,x}v, --include=*.tfvars).
-# Each unquoted word with ? * [ or {a,b} is matched against sample secret names. A bare * / *.* / .* is not judged
-# (too common), and a leading dot must be written, as in the shell
+# Each unquoted word with ? * [ or {a,b} is matched against sample secret names. A bare * / *.* / .* is expanded in the
+# current directory and judged by the real names, and a leading dot must be written, as in the shell
 # Names built from quotes or backslashes (cat ".e"nv) are read the same way (lib/secret-glob.pl)
 if [[ "$cmd_sec" == *[\?\*\[\{\"\'\\]* ]]; then
   glob_hit="$(SRE="$SECRET_PATH_RE" perl "${BASH_SOURCE[0]%/*}/lib/secret-glob.pl" <<<"$cmd_sec" 2>/dev/null)"
@@ -537,7 +537,7 @@ gh_api_settings_ok() {
 # Mutating gh api calls can bypass ask and block rules, so they are blocked (GET only).
 # Exception: a lone call to a repository-settings path (the repo itself, rulesets, private-vulnerability-reporting, vulnerability-alerts, actions/permissions)
 # is allowed with approval. Methods and fields are narrowed per path (gh_api_settings_ok)
-if grep -Eq "${P}gh[[:space:]]+api([^|;&]*)[[:space:]](-X|--method)[[:space:]=]*[\"']?(POST|PUT|PATCH|DELETE|post|put|patch|delete)" <<<"$cmd" \
+if grep -Eiq "${P}gh[[:space:]]+api([^|;&]*)[[:space:]](-X|--method)[[:space:]=]*[\"']?(POST|PUT|PATCH|DELETE)" <<<"$cmd" \
    || { grep -Eq "${P}gh[[:space:]]+api([^|;&]*)[[:space:]](-[fF][^[:space:]]*|--field|--raw-field|--input)([[:space:]=]|$)" <<<"$cmd" \
         && ! { grep -Eq "${P}gh[[:space:]]+api[[:space:]]+graphql([[:space:]]|$)" <<<"$cmd" \
                && ! grep -Eiq 'mutation|--input' <<<"$cmd"; }; }; then

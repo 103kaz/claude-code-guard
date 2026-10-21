@@ -105,7 +105,7 @@ Change them in the `/plugin` settings screen. They are read from user and manage
 
 | Key | Default | Meaning |
 |---|---|---|
-| `protected_branches` | `main`, `master` | branches push is blocked for |
+| `protected_branches` | `main`, `master` | branches push is blocked for (`*` matches any run of branch-name characters: `release/*`) |
 | `confirm_push` | `true` | ask before pushing a work branch |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | enable the pack |
 | `doc_check_before_pr` | `false` | block `gh pr create` (and an MCP `create_pull_request`) until `/code-guard:doc-code-consistency` has checked the branch head |
