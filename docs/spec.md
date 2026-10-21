@@ -1,6 +1,6 @@
 # code-guard 仕様 (v1)
 
-Claude Code のプラグイン `code-guard` の仕様。Claude Code が実行しようとする危ない操作をフックで止め、ファイルを変えたまま応答を終えようとしたらプロジェクトの検証を走らせる。
+Claude Code のプラグイン `code-guard` の仕様。Claude Code にハーネスとループを組み込む。ハーネスは、Claude Code が実行しようとする危ない操作をフックで止める仕組み。ループは、ファイルを変えたまま応答を終えようとしたらプロジェクトの検証を走らせる検証ループ、差分のレビューと修正を回す `review-loop`、文書と実装を照らす `doc-code-consistency`。
 
 ## 決まっていること
 

@@ -2,7 +2,7 @@
 
 [日本語](README.ja.md)
 
-A Claude Code plugin that stops dangerous operations with hooks, and runs your project's own checks before Claude finishes a turn.
+A Claude Code plugin that builds a harness and loops into your project. The harness is hooks that stop dangerous operations. The loops make Claude check its own work: a verify loop that runs your project's checks before Claude finishes a turn, a review loop that reviews and fixes a branch diff, and a docs check that compares the documentation with the code.
 
 ## What it does not guarantee
 
