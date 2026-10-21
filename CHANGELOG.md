@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-10-21)
 
 - The verify loop runs `.claude/verify.sh` only while its content is the one the user approved with `scripts/trust-verify.sh` (SHA-256, per project directory, kept under `~/.claude/code-guard/verify-trust/`; `trust-verify.sh` shows the whole file). An unapproved or changed script is skipped and the user is told once per session. **Existing projects must approve their `verify.sh` once.** Claude running `trust-verify.sh` asks.
 - `scripts/check-enabled.sh`: a SessionStart hook for the user's own settings that warns when a project's settings switch code-guard off (`enabledPlugins`, or `disableAllHooks`). The plugin cannot do this itself.

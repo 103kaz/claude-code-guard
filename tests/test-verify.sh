@@ -59,6 +59,11 @@ EXTRA_ENV="CLAUDE_PLUGIN_OPTION_VERIFY_MISSING_NOTICE=garbage"
 run_hook mn4 mark; echo d >>"$repo/a.txt"; run_hook mn4
 grep -q 'setup-verify' <<<"$OUT" || ng "an invalid verify_missing_notice did not fall back to true"
 EXTRA_ENV=""
+# The record of the notice cannot be written: say nothing (it would come back on every stop)
+mkdir -p "$state"; chmod 555 "$state"
+run_hook mn5 mark; echo e >>"$repo/a.txt"; run_hook mn5
+[ "$RC" = 0 ] && [ -z "$OUT" ] || ng "the missing verify.sh notice was shown although its record cannot be written"
+chmod 755 "$state"
 rm -f "$repo/a.txt"
 
 set_verify 'exit 1'

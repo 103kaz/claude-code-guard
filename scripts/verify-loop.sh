@@ -75,6 +75,20 @@ fi
 
 verify="$root/.claude/verify.sh"
 
+# No .claude/verify.sh: the loop is off. Leave early (before the change check, which costs a fingerprint) when the notice
+# is switched off, cannot be shown (without jq a notice would only reach stderr, which nobody sees on a passing stop)
+# or was already shown in this session
+missing_notice=0
+if [ ! -f "$verify" ]; then
+  case "$(printf '%s' "${CLAUDE_PLUGIN_OPTION_VERIFY_MISSING_NOTICE:-}" | tr '[:upper:]' '[:lower:]')" in
+    false|0|no|off) exit 0 ;;
+  esac
+  command -v jq >/dev/null || exit 0
+  missing_file="$state_dir/$key.missing"
+  [ -e "$missing_file" ] && exit 0
+  missing_notice=1
+fi
+
 # Do not verify when nothing changed since the start of the turn
 if in_git; then
   if [ -f "$mark_file" ]; then
@@ -88,14 +102,10 @@ elif [ -f "$mark_file" ]; then
     || [ "$(file_list_sum)" != "$(cat "$mark_file")" ] || exit 0
 fi
 
-# No .claude/verify.sh: the loop is off. Say so once per session (only after a change, so a read-only session stays quiet)
-if [ ! -f "$verify" ]; then
-  case "$(printf '%s' "${CLAUDE_PLUGIN_OPTION_VERIFY_MISSING_NOTICE:-}" | tr '[:upper:]' '[:lower:]')" in
-    false|0|no|off) exit 0 ;;
-  esac
-  missing_file="$state_dir/$key.missing"
-  [ -e "$missing_file" ] && exit 0
-  : >"$missing_file" 2>/dev/null
+# Say it once per session, and only after a change (so a read-only session stays quiet). When the record of having said it
+# cannot be written, say nothing: the notice would come back on every stop
+if [ "$missing_notice" = 1 ]; then
+  { : >"$missing_file"; } 2>/dev/null || exit 0
   system_message "code-guard: .claude/verify.sh is missing, so the verify loop is not running. Create it with /code-guard:setup-verify (turn this notice off with the verify_missing_notice setting)."
   exit 0
 fi

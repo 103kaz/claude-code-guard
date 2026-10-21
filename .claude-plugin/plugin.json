@@ -1,6 +1,6 @@
 {
   "name": "code-guard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Harness and loops for Claude Code: hooks that stop dangerous operations (push to protected branches, secret reads, destructive commands), plus a verify loop, a review loop and a docs check.",
   "author": { "name": "103kaz" },
   "license": "MIT",
