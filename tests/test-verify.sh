@@ -6,6 +6,14 @@ hook="$SCRIPTS/verify-loop.sh"
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/test-verify.XXXXXX")" || exit 1
 trap 'rm -rf "$tmp"' EXIT
+# On macOS /usr/bin/git is an xcrun shim. With HOME changed (below) it tries to write a cache outside the places the sandbox
+# allows, and its error lands in the hook's stderr. Run the real git through a symlink found before HOME changes
+if [ "$(uname)" = Darwin ]; then
+  real_git="$(xcrun -f git 2>/dev/null)"
+  if [ -x "$real_git" ]; then
+    mkdir -p "$tmp/bin" && printf '#!/bin/bash\nexec "%s" "$@"\n' "$real_git" >"$tmp/bin/git" && chmod +x "$tmp/bin/git" && export PATH="$tmp/bin:$PATH"
+  fi
+fi
 # The approvals are kept under $HOME, for both the hook and the user's terminal (where CLAUDE_PLUGIN_DATA is not set)
 export HOME="$tmp/home"; mkdir -p "$HOME"
 fail=0
