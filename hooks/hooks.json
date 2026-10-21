@@ -16,6 +16,10 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/verify-loop.sh\" mark"
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/doc-check.sh\" record-prompt"
           }
         ]
       }

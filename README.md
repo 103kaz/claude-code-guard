@@ -89,7 +89,7 @@ Create the script with `/code-guard:setup-verify`. It looks at your build files 
 
 `/code-guard:doc-code-consistency` checks that the documentation (README, `docs/`, `CLAUDE.md`, `CHANGELOG`, comments) matches the code, and reports contradictions, stale text and missing items with file:line evidence. It only reads, and changes files only when you ask it to fix a finding. Run it before a pull request on the branch diff, or name a document or feature to check.
 
-With `doc_check_before_pr` on, the plugin records the commit when the skill starts (only this bundled skill counts, not a personal skill of the same name) and blocks creating a pull request whose head is not that commit (no check yet, or commits added after it). The record is written when the check starts, whatever it finds, so it reminds rather than enforces.
+With `doc_check_before_pr` on, the plugin records the commit when the skill starts, whether Claude runs it or you type the slash command (only this bundled skill counts, not a personal skill of the same name) and blocks creating a pull request whose head is not that commit (no check yet, or commits added after it). The record is written when the check starts, whatever it finds, so it reminds rather than enforces.
 
 ## Token cost
 

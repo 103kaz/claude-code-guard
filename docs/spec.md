@@ -31,7 +31,7 @@ claude-code-guard/
 │   ├── trust-verify.sh     # 利用者が実行する: verify.sh の内容 (SHA-256) を承認する
 │   ├── check-enabled.sh    # 利用者の settings に登録する SessionStart: プロジェクトの settings が code-guard を外していれば警告する
 │   ├── check-deps.sh       # SessionStart: jq / perl が無いときだけ知らせる (止めない)
-│   ├── doc-check.sh        # PostToolUse(Skill) と PreToolUse(Bash|mcp__.*): PR の前の照合 (doc_check_before_pr)
+│   ├── doc-check.sh        # PostToolUse(Skill)・UserPromptSubmit と PreToolUse(Bash|mcp__.*): PR の前の照合 (doc_check_before_pr)
 │   └── lib/                # 共通の関数 (判定結果の出力、設定の読み込み)
 ├── skills/
 │   ├── setup-verify/
@@ -177,7 +177,7 @@ Glob はファイル名を返すだけなので対象にしない。
 | 機密値 | 中核の機密値のファイルは読まない |
 | 範囲 | 指定に従う。PR の前は、ブランチの差分の変更行に含まれる主張と、差分で変えた実装に触れている既存の記述 |
 | トークン | 常に載るのは 1 行の説明だけ。手順の本文は実行したときに読み込まれる |
-| PR の前の照合 | `userConfig` の `doc_check_before_pr` (既定は無効)。有効なとき、PostToolUse(Skill) のフック (`scripts/doc-check.sh record`) が、同梱のスキル (`code-guard:doc-code-consistency`。同じ名前の個人のスキルは数えない) を始めた時点の HEAD をリポジトリごとに記録する (`${CLAUDE_PLUGIN_DATA}/doc-check/`)。PreToolUse(Bash\|mcp__.*) のフック (`scripts/doc-check.sh gate`) は、`gh pr create` と MCP の `create_pull_request` で、PR にするブランチの先頭 (`--head` / `head`、無ければ HEAD) が記録と違えば block する。記録は照合の結果によらず残るので、強制ではない |
+| PR の前の照合 | `userConfig` の `doc_check_before_pr` (既定は無効)。有効なとき、PostToolUse(Skill) のフック (`scripts/doc-check.sh record`) が、同梱のスキル (`code-guard:doc-code-consistency`。同じ名前の個人のスキルは数えない) を始めた時点の HEAD をリポジトリごとに記録する (`${CLAUDE_PLUGIN_DATA}/doc-check/`)。ユーザーがスラッシュコマンドで直接打った場合は Skill ツールを通らないので、UserPromptSubmit のフック (`scripts/doc-check.sh record-prompt`) が、プロンプトの先頭が `/code-guard:doc-code-consistency` のときに同じ記録を書く。PreToolUse(Bash\|mcp__.*) のフック (`scripts/doc-check.sh gate`) は、`gh pr create` と MCP の `create_pull_request` で、PR にするブランチの先頭 (`--head` / `head`、無ければ HEAD) が記録と違えば block する。記録は照合の結果によらず残るので、強制ではない |
 
 ## 設定 (userConfig)
 
