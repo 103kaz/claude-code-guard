@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 (2026-10-21)
+
+- With `doc_check_before_pr` on, typing `/code-guard:doc-code-consistency` yourself now counts as the check. It does not go through the Skill tool, so it was never recorded and `gh pr create` stayed blocked. A `UserPromptSubmit` hook records the commit when the prompt starts with the command.
+
 ## 0.2.0 (2026-10-21)
 
 - The verify loop runs `.claude/verify.sh` only while its content is the one the user approved with `scripts/trust-verify.sh` (SHA-256, per project directory, kept under `~/.claude/code-guard/verify-trust/`; `trust-verify.sh` shows the whole file). An unapproved or changed script is skipped and the user is told once per session. **Existing projects must approve their `verify.sh` once.** Claude running `trust-verify.sh` asks.
