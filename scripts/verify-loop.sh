@@ -10,7 +10,7 @@
 #   without a mark it runs
 # - Stops at most VERIFY_MAX_RETRY times in one turn (userConfig verify_max_retry, default 3). The last round tells Claude to
 #   report to the user if it cannot fix it. If it still fails the user is told through systemMessage and the stop passes
-# - No .claude/verify.sh: do nothing, say nothing
+# - No .claude/verify.sh: after a change, say once per session how to create it (userConfig verify_missing_notice, default true)
 # - A self-reporting aid, not enforcement
 set -uo pipefail
 
@@ -74,7 +74,6 @@ if [ "$mode" = mark ]; then
 fi
 
 verify="$root/.claude/verify.sh"
-[ -f "$verify" ] || exit 0
 
 # Do not verify when nothing changed since the start of the turn
 if in_git; then
@@ -87,6 +86,18 @@ elif [ -f "$mark_file" ]; then
   # Outside git: a file modified after the mark, or a file renamed / deleted (the list changed)
   [ -n "$(find . -type f -newer "$mark_file" -not -path './.git/*' -print 2>/dev/null | head -n 1)" ] \
     || [ "$(file_list_sum)" != "$(cat "$mark_file")" ] || exit 0
+fi
+
+# No .claude/verify.sh: the loop is off. Say so once per session (only after a change, so a read-only session stays quiet)
+if [ ! -f "$verify" ]; then
+  case "$(printf '%s' "${CLAUDE_PLUGIN_OPTION_VERIFY_MISSING_NOTICE:-}" | tr '[:upper:]' '[:lower:]')" in
+    false|0|no|off) exit 0 ;;
+  esac
+  missing_file="$state_dir/$key.missing"
+  [ -e "$missing_file" ] && exit 0
+  : >"$missing_file" 2>/dev/null
+  system_message "code-guard: .claude/verify.sh is missing, so the verify loop is not running. Create it with /code-guard:setup-verify (turn this notice off with the verify_missing_notice setting)."
+  exit 0
 fi
 
 # A verify.sh from a cloned repository is someone else's code: run it only while its content is the one the user approved

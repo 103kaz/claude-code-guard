@@ -67,7 +67,7 @@ On by default. Turn one off when its policy does not fit how you work. Secret re
 
 ## Verify loop
 
-When files changed during a turn and the project has `.claude/verify.sh`, the Stop hook runs it. On failure the last 80 lines of output go back to Claude (exit 2). After `verify_max_retry` failures in one turn (default 3) the user is told and the stop passes. With no `.claude/verify.sh` nothing happens.
+When files changed during a turn and the project has `.claude/verify.sh`, the Stop hook runs it. On failure the last 80 lines of output go back to Claude (exit 2). After `verify_max_retry` failures in one turn (default 3) the user is told and the stop passes. With no `.claude/verify.sh` the loop does not run; if files changed, the user is told once per session that it can be created with `/code-guard:setup-verify` (turn off with `verify_missing_notice`).
 
 "Changed" compares a fingerprint of HEAD, the tracked diff and the untracked files against the one taken when the prompt was submitted, so changes that were already there do not trigger it. Outside git, a file modified, renamed or deleted after the prompt was submitted counts.
 
@@ -109,6 +109,7 @@ Change them in the `/plugin` settings screen. They are read from user and manage
 | `confirm_push` | `true` | ask before pushing a work branch |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | enable the pack |
 | `doc_check_before_pr` | `false` | block `gh pr create` (and an MCP `create_pull_request`) until `/code-guard:doc-code-consistency` has checked the branch head |
+| `verify_missing_notice` | `true` | tell once per session when files changed and `.claude/verify.sh` is missing |
 | `verify_max_retry` | `3` | verify loop retries per turn (1-10) |
 
 Per-project overrides are not supported.

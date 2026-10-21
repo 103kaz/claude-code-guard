@@ -37,10 +37,28 @@ set_verify_untrusted() { printf '#!/bin/bash\n%s\n' "$1" >"$repo/.claude/verify.
 set_verify() { set_verify_untrusted "$1"; trust_verify; }
 commit_all() { git -C "$repo" add -A && git -C "$repo" commit -qm "$1"; }
 
-# No .claude/verify.sh: do nothing and say nothing
+# No .claude/verify.sh: no failure, no stderr, no exit 2
 echo a >"$repo/a.txt"
 run_hook u1
-[ "$RC" = 0 ] && [ -z "$OUT" ] && [ -z "$ERR" ] || ng "acted without .claude/verify.sh (rc=$RC)"
+[ "$RC" = 0 ] && [ -z "$ERR" ] || ng "acted without .claude/verify.sh (rc=$RC)"
+rm -f "$repo/a.txt"
+
+# No .claude/verify.sh and the tree changed in the turn: say how to make one, once per session (userConfig verify_missing_notice)
+run_hook mn1 mark; run_hook mn1
+[ "$RC" = 0 ] && [ -z "$OUT" ] || ng "said something with no .claude/verify.sh and no change"
+echo a >"$repo/a.txt"
+run_hook mn1
+[ "$RC" = 0 ] && grep -q 'setup-verify' <<<"$OUT" || ng "no notice about the missing .claude/verify.sh after a change"
+run_hook mn1; [ -z "$OUT" ] || ng "the missing verify.sh notice came twice in one session"
+run_hook mn2 mark; echo b >>"$repo/a.txt"; run_hook mn2
+grep -q 'setup-verify' <<<"$OUT" || ng "a new session did not get the missing verify.sh notice"
+EXTRA_ENV="CLAUDE_PLUGIN_OPTION_VERIFY_MISSING_NOTICE=false"
+run_hook mn3 mark; echo c >>"$repo/a.txt"; run_hook mn3
+[ "$RC" = 0 ] && [ -z "$OUT" ] || ng "verify_missing_notice=false still said something"
+EXTRA_ENV="CLAUDE_PLUGIN_OPTION_VERIFY_MISSING_NOTICE=garbage"
+run_hook mn4 mark; echo d >>"$repo/a.txt"; run_hook mn4
+grep -q 'setup-verify' <<<"$OUT" || ng "an invalid verify_missing_notice did not fall back to true"
+EXTRA_ENV=""
 rm -f "$repo/a.txt"
 
 set_verify 'exit 1'

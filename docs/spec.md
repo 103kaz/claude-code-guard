@@ -149,7 +149,7 @@ Glob はファイル名を返すだけなので対象にしない。
 | 項目 | 仕様 |
 |---|---|
 | 走る条件 | プロジェクトに `.claude/verify.sh` があり、回の始め (UserPromptSubmit) から作業ツリーが変わっている (回の中のコミットを含む) |
-| `verify.sh` が無いとき | 何もしない。メッセージも出さない |
+| `verify.sh` が無いとき | 検証はしない。回の始めから作業ツリーが変わっているときだけ、`systemMessage` で「検証ループが動いていない、`/code-guard:setup-verify` で作れる」と知らせる (セッションにつき 1 回。変わっていない回、読むだけの回では出さない)。`userConfig` の `verify_missing_notice` を `false` にすると出さない |
 | 変わったかの判定 | HEAD、追跡中のファイルの差分、追跡外のファイルの名前と中身をまとめた指紋で比べる。コミットがまだ無いリポジトリでは、HEAD との差分の代わりに index と作業ツリーの差分を使う。git の外では、回の始めに置いた印のファイルより後に変わったファイルがあるか、ファイルの一覧 (名前の変更と削除) が変わったかで決める |
 | 失敗したとき | exit 2 で止め、出力の末尾 80 行を Claude に返す |
 | やり直しの回数 | `userConfig` の `verify_max_retry` (既定 3)。最後の回では、直せなければ報告して終えるよう伝える。超えたらユーザーに systemMessage で知らせて通す |
@@ -190,6 +190,7 @@ Glob はファイル名を返すだけなので対象にしない。
 | `pack_gcp` | 真偽値 | `true` | gcp パック |
 | `pack_cloudflare` | 真偽値 | `true` | cloudflare パック |
 | `doc_check_before_pr` | 真偽値 | `false` | PR を作る前に `/code-guard:doc-code-consistency` の照合を求める |
+| `verify_missing_notice` | 真偽値 | `true` | `.claude/verify.sh` が無いまま作業ツリーが変わったとき、作り方を 1 回知らせる |
 | `verify_max_retry` | 数値 (1〜10) | `3` | 検証ループのやり直しの回数 |
 
 `userConfig` の型は `string`、`number`、`boolean`、`directory`、`file` の 5 つで、配列は `string` に `multiple: true` を付けて表す。`multiple` の項目は `/config` の一覧に出ないので、`/plugin` の設定の画面から変える。

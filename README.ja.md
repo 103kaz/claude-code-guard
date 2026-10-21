@@ -67,7 +67,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 ## 検証ループ
 
-ファイルを変えたまま応答を終えようとしたとき、プロジェクトに `.claude/verify.sh` があれば Stop フックが走らせます。失敗したら出力の末尾 80 行を Claude に返します (exit 2)。1 回の中で `verify_max_retry` 回 (既定 3) 失敗したら、ユーザーに知らせて通します。`.claude/verify.sh` が無ければ何もしません。
+ファイルを変えたまま応答を終えようとしたとき、プロジェクトに `.claude/verify.sh` があれば Stop フックが走らせます。失敗したら出力の末尾 80 行を Claude に返します (exit 2)。1 回の中で `verify_max_retry` 回 (既定 3) 失敗したら、ユーザーに知らせて通します。`.claude/verify.sh` が無ければループは動きません。ファイルが変わっていたときは、`/code-guard:setup-verify` で作れることをセッションにつき 1 回知らせます (`verify_missing_notice` で止められます)。
 
 「変わったか」は、プロンプトを送った時点の HEAD、追跡中のファイルの差分、追跡外のファイルの指紋と比べます。回の前からある変更だけでは走りません。git の外では、プロンプトを送った後に変わった・名前を変えた・消したファイルがあれば走ります。
 
@@ -109,6 +109,7 @@ bash <プラグインのディレクトリ>/scripts/trust-verify.sh [プロジ�
 | `confirm_push` | `true` | 作業ブランチへの push に確認を出す |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | パックの有効・無効 |
 | `doc_check_before_pr` | `false` | `/code-guard:doc-code-consistency` がブランチの先頭を照合するまで、`gh pr create` (と MCP の `create_pull_request`) を block する |
+| `verify_missing_notice` | `true` | `.claude/verify.sh` が無いままファイルが変わったとき、セッションにつき 1 回知らせる |
 | `verify_max_retry` | `3` | 検証ループの 1 回あたりのやり直しの回数 (1〜10) |
 
 プロジェクトごとの上書きはできません。
