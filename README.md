@@ -15,9 +15,11 @@ A Claude Code plugin that builds a harness and loops into your project. The harn
 
 ## Install
 
+See [docs/setup.md](docs/setup.md) for the terminal and the desktop app, how to check the install, settings, update and uninstall. In short, run these in your shell, then start a new session:
+
 ```bash
-/plugin marketplace add 103kaz/claude-code-guard
-/plugin install code-guard@claude-code-guard
+claude plugin marketplace add 103kaz/claude-code-guard
+claude plugin install code-guard@claude-code-guard
 ```
 
 Requires bash 3.2+, `jq` and `perl`, on macOS or Linux. Windows is not supported. If `jq` or `perl` is missing, the guards block everything they cover and say how to install the tool. A SessionStart hook also names the missing tool when a session opens (silent when both are present).
