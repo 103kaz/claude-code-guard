@@ -69,7 +69,7 @@ sql_text="$(jq -r '[.. | strings] | join(" ")' <<<"$(jq -c '.tool_input // {}' <
 # Tools that take SQL: any data-changing keyword asks. replace and copy count only at the start of a statement
 # (replace(name, 'a', 'b') is a function)
 if [ "$sql_tool" = 1 ] \
-   && grep -Eiq '(^|[^[:alnum:]_])(drop|delete|truncate|alter|update|insert|create|merge|grant|revoke|rename|upsert)([[:space:]"`(\[]|$)|(^|;)[[:space:]]*(replace|copy)([[:space:]"`(\[]|$)' <<<"$sql_text"; then
+   && grep -Eiq '(^|[^[:alnum:]_])(drop|delete|truncate|alter|update|insert|create|merge|grant|revoke|rename|upsert|call)([[:space:]"`(\[]|$)|(^|;)[[:space:]]*(replace|copy)([[:space:]"`(\[]|$)' <<<"$sql_text"; then
   ask "MCP tool $tool: SQL that changes the database. Confirm the user has OKed this in chat before approving"
 fi
 # Any other tool (run, statement, ...) asks when the input has the shape of a data-changing statement
@@ -79,7 +79,7 @@ Q='[[:space:]"`(\[]*'
 NAME='[^[:space:];]+'
 T='[[:alnum:]_"`.]+'
 OBJ='(table|database|schema|view|index|unique|sequence|function|procedure|trigger|type|role|user|extension|policy|materialized|temp|temporary|column|constraint|if)'
-if grep -Eiq "(^|[^[:alnum:]_])(delete${Q}from|insert${Q}(into|or|ignore)|(replace|merge)${Q}into|update${Q}${NAME}([[:space:]]+(as[[:space:]]+)?[[:alnum:]_]+)?${Q}set|update[[:space:]][^;]*[[:space:]]join[[:space:]][^;]*[[:space:]]set|delete${Q}([[:alnum:]_.]+[[:space:]]*,[[:space:]]*)*[[:alnum:]_.]+[[:space:]]+from|insert${Q}${NAME}${Q}(values|select|set)|rename${Q}(table|user)|(drop|alter|truncate)${Q}${OBJ}|create${Q}(or[[:space:]]+replace[[:space:]]+)?${OBJ}|truncate[[:space:]]+(only[[:space:]]+)?${T}([[:space:]]*,[[:space:]]*${T})*[[:space:]]*(;|$)|(grant|revoke)[[:space:]]+${NAME}[[:space:]]+(to|from)|copy[[:space:]]+${NAME}([[:space:]]*[(][^)]*[)])?[[:space:]]+(from|to)|merge[[:space:]]+${NAME}([[:space:]]+(as[[:space:]]+)?[[:alnum:]_]+)?[[:space:]]+using|call[[:space:]]+[[:alnum:]_.]+[[:space:]]*[(].*|delete[[:space:]]+${NAME}[[:space:]]+where|(grant|revoke)[[:space:]]+(all|select|insert|update|delete|usage|execute|references|trigger|create|connect)([[:space:],]|$))([^[:alnum:]_]|$)" <<<"$sql_text"; then
+if grep -Eiq "(^|[^[:alnum:]_])(delete${Q}from|insert${Q}(into|or|ignore)|(replace|merge)${Q}into|update${Q}${NAME}([[:space:]]+(as[[:space:]]+)?[[:alnum:]_]+)?${Q}set|update[[:space:]][^;]*[[:space:]]join[[:space:]][^;]*[[:space:]]set|delete${Q}([[:alnum:]_.]+[[:space:]]*,[[:space:]]*)*[[:alnum:]_.]+[[:space:]]+from|insert${Q}${NAME}${Q}(values|select|set)|rename${Q}(table|user)|(drop|alter|truncate)${Q}${OBJ}|create${Q}(or[[:space:]]+replace[[:space:]]+)?${OBJ}|truncate[[:space:]]+(only[[:space:]]+)?${T}([[:space:]]*,[[:space:]]*${T})*[[:space:]]*(;|$)|(grant|revoke)[[:space:]]+${NAME}[[:space:]]+(to|from)|copy[[:space:]]*[(][^;]*[)][[:space:]]*to|copy[[:space:]]+${NAME}([[:space:]]*[(][^)]*[)])?[[:space:]]+(from|to)|merge[[:space:]]+${NAME}([[:space:]]+(as[[:space:]]+)?[[:alnum:]_]+)?[[:space:]]+using|call[[:space:]]+[[:alnum:]_.]+[[:space:]]*[(].*|delete[[:space:]]+${NAME}[[:space:]]+where|(grant|revoke)[[:space:]]+(all|select|insert|update|delete|usage|execute|references|trigger|create|connect)([[:space:],]|$))([^[:alnum:]_]|$)" <<<"$sql_text"; then
   ask "MCP tool $tool: the input looks like SQL that changes the database. Confirm the user has OKed this in chat before approving"
 fi
 
