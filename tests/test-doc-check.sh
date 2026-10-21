@@ -97,6 +97,28 @@ run gate '{"tool_name":"mcp__github__create_pull_request","tool_input":{"head":"
 run gate '{"tool_name":"mcp__github__list_pull_requests","tool_input":{}}'
 [ "$RC" = 0 ] || ng "another MCP tool was blocked (rc=$RC)"
 
+# A slash command typed by the user does not go through the Skill tool: record-prompt (UserPromptSubmit) records it
+mkrepo "$tmp/typed"
+prompt_in() { jq -nc --arg p "$1" '{prompt:$p}'; }
+for p in '/doc-code-consistency' '/code-guard:doc-code-consistency-x' 'run /code-guard:doc-code-consistency please' 'fix the docs' '/other-plugin:doc-code-consistency'; do
+  run record-prompt "$(prompt_in "$p")" "$tmp/typed"
+  run gate "$(bash_in 'gh pr create')" "$tmp/typed"
+  [ "$RC" = 2 ] || ng "the prompt '$p' counted as the check (rc=$RC)"
+done
+run record-prompt "$(prompt_in '/code-guard:doc-code-consistency')" "$tmp/typed"
+run gate "$(bash_in 'gh pr create')" "$tmp/typed"
+[ "$RC" = 0 ] || ng "the typed slash command did not count as the check (rc=$RC)"
+mkrepo "$tmp/typed2"
+run record-prompt "$(prompt_in $'/code-guard:doc-code-consistency src/\nmore')" "$tmp/typed2"
+run gate "$(bash_in 'gh pr create')" "$tmp/typed2"
+[ "$RC" = 0 ] || ng "the typed slash command with arguments did not count as the check (rc=$RC)"
+ON=""
+mkrepo "$tmp/typed3"
+run record-prompt "$(prompt_in '/code-guard:doc-code-consistency')" "$tmp/typed3"
+ON=true
+run gate "$(bash_in 'gh pr create')" "$tmp/typed3"
+[ "$RC" = 2 ] || ng "a typed slash command was recorded with the setting off (rc=$RC)"
+
 # Outside git there is no branch to check: pass
 mkdir -p "$tmp/plain"
 run gate "$(bash_in 'gh pr create')" "$tmp/plain"
