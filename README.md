@@ -20,7 +20,7 @@ A Claude Code plugin that builds a harness and loops into your project. The harn
 /plugin install code-guard@claude-code-guard
 ```
 
-Requires bash 3.2+, `jq` and `perl`, on macOS or Linux. Windows is not supported. If `jq` or `perl` is missing, the guards block everything they cover and say how to install the tool.
+Requires bash 3.2+, `jq` and `perl`, on macOS or Linux. Windows is not supported. If `jq` or `perl` is missing, the guards block everything they cover and say how to install the tool. A SessionStart hook also names the missing tool when a session opens (silent when both are present).
 
 ## What is guarded
 
@@ -134,6 +134,7 @@ Developed against Claude Code 2.1.293. The hooks set `onFailure: "block"`, which
 bash tests/test-guard.sh    # guards, packs, settings (about a minute)
 bash tests/test-verify.sh   # verify loop
 bash tests/test-doc-check.sh  # docs check before a PR
+bash tests/test-check-deps.sh  # dependency check at session start
 ```
 
 When you change a guard decision, add cases to `tests/test-guard.sh` first.

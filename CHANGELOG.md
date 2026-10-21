@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A SessionStart hook names `jq` or `perl` when it is missing (silent otherwise, never blocks), so the problem shows before the guards start blocking.
 - The README, spec and plugin descriptions now present the plugin as a harness plus loops (verify loop, review loop, docs check).
 - `/code-guard:review-loop`: runs verify, review and fix over the branch diff until a lap finds nothing.
 

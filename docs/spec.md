@@ -28,6 +28,7 @@ claude-code-guard/
 │   ├── guard-mcp.sh        # PreToolUse(mcp__.*)
 │   ├── fmt-terraform.sh    # PostToolUse(Edit|Write): .tf を整形
 │   ├── verify-loop.sh      # UserPromptSubmit と Stop
+│   ├── check-deps.sh       # SessionStart: jq / perl が無いときだけ知らせる (止めない)
 │   ├── doc-check.sh        # PostToolUse(Skill) と PreToolUse(Bash|mcp__.*): PR の前の照合 (doc_check_before_pr)
 │   └── lib/                # 共通の関数 (判定結果の出力、設定の読み込み)
 ├── skills/
@@ -40,7 +41,8 @@ claude-code-guard/
 ├── tests/
 │   ├── test-guard.sh
 │   ├── test-verify.sh
-│   └── test-doc-check.sh
+│   ├── test-doc-check.sh
+│   └── test-check-deps.sh
 ├── docs/
 │   └── spec.md
 ├── .github/workflows/
@@ -83,6 +85,8 @@ This is a policy block, not a hook failure. Do not retry it another way (another
 ### 依存が無いとき
 
 jq が無いとフックの入力を読めない。そのときは、そのフックが受け持つ操作をすべて block し、jq の入れ方を返す (迷ったら止める)。perl も同じ扱いにする。
+
+これとは別に、セッションの開始時 (SessionStart) に `scripts/check-deps.sh` が jq と perl を調べ、足りないものの名前と入れ方を文脈に出す。両方あるときは何も出さず、止めない (常に exit 0)。ガードが初めて動いた時点で全部が止まる前に気づくための知らせで、判定はガード側が行う。
 
 ### 中核のルール (Bash)
 
@@ -218,6 +222,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | ガード | `tests/test-guard.sh`。Bash のガード、ファイルのツールのガード、パックの有効・無効、曖昧な形の確認を試す |
 | 検証ループ | `tests/test-verify.sh` |
 | PR の前の照合 | `tests/test-doc-check.sh` |
+| 依存の確認 | `tests/test-check-deps.sh` |
 | マニフェスト | `claude plugin validate --strict` |
 | CI | GitHub Actions。PR では ubuntu、main への push では ubuntu と macOS。macOS は `/bin/bash` (3.2) で流す。public リポジトリなので無料 |
 
