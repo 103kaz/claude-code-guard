@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The verify loop runs `.claude/verify.sh` only while its content is the one the user approved with `scripts/trust-verify.sh` (SHA-256, per project directory, kept under `~/.claude/code-guard/verify-trust/`; `trust-verify.sh` shows the whole file). An unapproved or changed script is skipped and the user is told once per session. **Existing projects must approve their `verify.sh` once.** Claude running `trust-verify.sh` asks.
+- `scripts/check-enabled.sh`: a SessionStart hook for the user's own settings that warns when a project's settings switch code-guard off (`enabledPlugins`, or `disableAllHooks`). The plugin cannot do this itself.
 - A SessionStart hook names `jq` or `perl` when it is missing (silent otherwise, never blocks), so the problem shows before the guards start blocking.
 - The README, spec and plugin descriptions now present the plugin as a harness plus loops (verify loop, review loop, docs check).
 - `/code-guard:review-loop`: runs verify, review and fix over the branch diff until a lap finds nothing.
@@ -24,5 +26,6 @@
 - `cat -- -m "<file>"`: a value after `--` that follows a message flag is treated as message text.
 - `gh api -X Delete` written in mixed case is not recognized as a mutating method.
 - For an MCP tool without `query`, `sql`, `execute`, `exec` or `migration` in its name, SQL is found only by the shapes listed in the spec. Other forms pass (`DELETE users WHERE ...` without `FROM`, `GRANT admin TO bob`, `COPY t FROM ...`, `MERGE t USING ...`, `CALL purge_all()`). Text that reads like one of those shapes asks, so plain messages such as "create type definitions", "we drop index cards" or "drop table soon" ask too, including those sent to a chat or mail tool. This is kept on purpose: narrowing the shape (to a statement that starts a sentence or ends with `;`) would let `run` / `statement` tools pass a statement written without them.
-- A repository can switch the plugin off through `enabledPlugins` in its own settings.
-- Per-project configuration, a protected-branch glob (`release/*`), and the confirmation-free run of a cloned repository's `.claude/verify.sh` are not handled.
+- A repository can switch the plugin off through `enabledPlugins` in its own settings. The plugin cannot notice (it runs no hooks then); `scripts/check-enabled.sh` registered in the user's settings warns about the two project settings files, not about managed settings or other places.
+- Per-project configuration and a protected-branch glob (`release/*`) are not handled.
+- The approval of a `verify.sh` is a hash checked just before the run; a file changed between the check and the run is not caught. The approval covers `verify.sh` itself, not the files it calls. The ask on `trust-verify.sh` does not see a name built at run time. `bash .claude/verify.sh` typed by Claude is not stopped (the loop's own run is what the approval gates).

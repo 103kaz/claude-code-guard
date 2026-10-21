@@ -89,6 +89,29 @@ elif [ -f "$mark_file" ]; then
     || [ "$(file_list_sum)" != "$(cat "$mark_file")" ] || exit 0
 fi
 
+# A verify.sh from a cloned repository is someone else's code: run it only while its content is the one the user approved
+# (scripts/trust-verify.sh). Otherwise skip it and tell the user how to approve, once per session
+# shellcheck source=lib/verify-trust.sh
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$script_dir/lib/verify-trust.sh" || exit 0
+if ! verify_trusted "$root" "$verify"; then
+  # Said once per session for the same content; a different content (an edit, a pull) is said again, so a skipped check is not mistaken for a pass
+  notice_file="$state_dir/$key.notice"
+  now="$(verify_sha "$verify")"
+  [ -n "$now" ] || now="unreadable"
+  if [ "$(cat "$notice_file" 2>/dev/null)" != "$now" ]; then
+    printf '%s' "$now" >"$notice_file" 2>/dev/null
+    if [ -L "$verify" ]; then
+      system_message "code-guard: .claude/verify.sh was not run: it is a symlink, which is never approved. Make it a regular file."
+    elif ! command -v perl >/dev/null 2>&1; then
+      system_message "code-guard: .claude/verify.sh was not run: perl is needed to check its approval and was not found."
+    else
+      system_message "code-guard: .claude/verify.sh was not run because its content has not been approved. Read it, then approve it yourself in a terminal: bash \"$script_dir/trust-verify.sh\" \"$root\""
+    fi
+  fi
+  exit 0
+fi
+
 # Run even when the execute bit is missing. Time out (perl alarm; timeout is missing on macOS) so a hung check cannot block the turn forever
 run_verify() {
   # verify.sh runs in its own process group. On time-out the group gets TERM, then KILL after 2 seconds, so a child that

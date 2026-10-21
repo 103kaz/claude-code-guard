@@ -37,3 +37,5 @@ jobs:
         run: bash tests/test-doc-check.sh
       - name: Dependency check tests
         run: bash tests/test-check-deps.sh
+      - name: Enabled-plugin warning tests
+        run: bash tests/test-check-enabled.sh

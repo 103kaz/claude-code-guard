@@ -11,7 +11,7 @@ Claude Code にハーネスとループを組み込むプラグインです。�
 - Grep は、対象の `path` が機密値のファイルのときだけ止めます。ディレクトリを検索して結果に機密値のファイルが混ざる場合は止められません。
 - 検証ループは Claude に直させる仕組みで、強制ではありません。`verify.sh` を通さずに終える方法は残ります。
 - フックの入力の形やプラグインの仕組みは、Claude Code の版で変わることがあります。[動作を確かめた版](#動作を確かめた版)を見てください。
-- リポジトリ側でプラグインを外せます。プロジェクトの `.claude/settings.json` の `enabledPlugins` は、ユーザーの設定より優先されます。Claude がこれらのファイルを書き換えるのは止まりますが (確認またはブロック)、クローンした時点で入っている設定は止められません。
+- リポジトリ側でプラグインを外せます。プロジェクトの `.claude/settings.json` の `enabledPlugins` は、ユーザーの設定より優先されます。Claude がこれらのファイルを書き換えるのは止まりますが (確認またはブロック)、クローンした時点で入っている設定は止められません。プラグインを外されるとフックは一つも動かないので、プラグイン自身では気づけません。知るための方法は「[リポジトリがプラグインを外すとき](#リポジトリがプラグインを外すとき)」にあります。
 
 ## 導入
 
@@ -71,6 +71,14 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 「変わったか」は、プロンプトを送った時点の HEAD、追跡中のファイルの差分、追跡外のファイルの指紋と比べます。回の前からある変更だけでは走りません。git の外では、プロンプトを送った後に変わった・名前を変えた・消したファイルがあれば走ります。
 
+クローンしたリポジトリの `verify.sh` は他人が書いたコードなので、ループが走らせるのは、あなたが承認した内容のときだけです。承認するまでは走らせず、セッションにつき 1 回だけ知らせます。中身を読んだうえで、ターミナルで承認します。
+
+```bash
+bash <プラグインのディレクトリ>/scripts/trust-verify.sh [プロジェクトのディレクトリ]
+```
+
+ファイルの全体 (制御文字は見える形にして) と SHA-256 を表示し、`yes` と打ったときだけ承認します。承認はプロジェクトのディレクトリごとに `~/.claude/code-guard/verify-trust/` の下へ残り、ファイルを変えると外れます。シンボリックリンクの `verify.sh` は承認しません。Claude が `trust-verify.sh` (や承認のコード) を実行しようとすると Bash のガードが ask にし、Bash から承認のファイルを書くのは block なので、Claude が自分で `yes` と答えても、あなたの確認が要ります。ask は補助で、実行時に組み立てた名前は通ります。承認が及ぶのは `verify.sh` 自身で、それが呼ぶファイル (`make`、`npm test`、`bash scripts/ci.sh`) には及びません。
+
 `/code-guard:setup-verify` で雛形を作れます。ビルドの設定を見て速い lint とテストを提案し、同意を得てから書きます。
 
 ## レビューのループ
@@ -105,6 +113,24 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 プロジェクトごとの上書きはできません。
 
+## リポジトリがプラグインを外すとき
+
+プロジェクトの `.claude/settings.json` や `.claude/settings.local.json` の `enabledPlugins` はあなたの設定より優先され、外されたプラグインはフックを一つも動かさないので、code-guard は内側から警告できません。知るには、プラグインの外にあたる自分の settings に、`scripts/check-enabled.sh` を SessionStart のフックとして登録します。プロジェクトの settings が `code-guard@...` を `false` にしているときだけ警告を出し、止めはしません。
+
+`scripts/check-enabled.sh` を `~/.claude/hooks/code-guard-check-enabled.sh` にコピーし、`~/.claude/settings.json` に次を足します。
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "bash \"$HOME/.claude/hooks/code-guard-check-enabled.sh\"" } ] }
+    ]
+  }
+}
+```
+
+Claude が `~/.claude` を書き換えるのは止まるので、あなたの手で行ってください。`jq` が要ります。見るのはその 2 つのプロジェクトのファイルだけで、managed settings など別の場所での無効化は見ません。上書きできないようにするには、`enabledPlugins` を managed settings に置きます。
+
 ## サンドボックスとの併用
 
 サンドボックスは OS のレベルで書き込みと通信を絞ります。code-guard は操作の意味 (main への push、`terraform destroy` など) で止めます。役割が違うので、併用できます。プラグインからはサンドボックスを設定できないので、自分の settings に書きます。
@@ -135,6 +161,7 @@ bash tests/test-guard.sh    # ガード、パック、設定 (1 分ほど)
 bash tests/test-verify.sh   # 検証ループ
 bash tests/test-doc-check.sh  # PR の前の照合
 bash tests/test-check-deps.sh  # セッション開始時の依存の確認
+bash tests/test-check-enabled.sh  # プロジェクトがプラグインを外すときの警告
 ```
 
 ガードの判定を変えるときは、先に `tests/test-guard.sh` にケースを足します。
