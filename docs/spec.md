@@ -156,11 +156,11 @@ Glob はファイル名を返すだけなので対象にしない。
 | 時間切れ | 600 秒 |
 | 状態の置き場所 | `${CLAUDE_PLUGIN_DATA}/verify/<session_id>.*` |
 | `verify.sh` の編集 | ガードが ask にする (テストを消して通すのを防ぐ) |
-| `verify.sh` の承認 | クローンしたリポジトリの `verify.sh` は他人のコードなので、利用者が承認した内容のときだけ走らせる。承認は `scripts/trust-verify.sh` (利用者がターミナルで実行) が、ファイルと SHA-256 を見せ、標準入力の `yes` で記録する。記録は `${CLAUDE_PLUGIN_DATA}/verify-trust/` の下に、プロジェクトのディレクトリごと (実パスの cksum) に 1 ファイル。内容が変わると外れる。未承認のときは走らせず、承認の手順を `systemMessage` で知らせる (セッションにつき 1 回)。Claude が `trust-verify.sh` を実行しようとすると Bash のガードが ask にする。承認の記録を直接書くのは、`~/.claude/plugins` の規則で block |
+| `verify.sh` の承認 | クローンしたリポジトリの `verify.sh` は他人のコードなので、利用者が承認した内容のときだけ走らせる。承認は `scripts/trust-verify.sh` (利用者がターミナルで実行) が、ファイルの全体 (制御文字は `cat -v` で見える形にする) と SHA-256 を見せ、標準入力の `yes` で記録する。記録は `~/.claude/code-guard/verify-trust/` の下に、プロジェクトの実パスの SHA-256 を名前にした 1 ファイル。`CLAUDE_PLUGIN_DATA` の下には置かない (フックにはあり、利用者の端末には無いので、書く場所と読む場所が食い違う)。内容が変わると外れる。シンボリックリンクの `verify.sh` は承認も実行もしない。未承認のときは走らせず、承認の手順を `systemMessage` で知らせる (同じ内容につきセッションで 1 回。内容が変わればまた知らせる)。perl が無いときは、そう知らせる。Bash のガードは、`trust-verify.sh` や承認のコード (`lib/verify-trust.sh`) を名指しする区間を、読むだけのコマンド (`cat`、`grep` など) 以外なら ask にする (引用符は外して読み、`trust-v*.sh` のグロブも見る)。承認の記録 (`verify-trust/`) を Bash から書くのは block。ファイルのツールは `~/.claude` の下なので ask |
 
 雛形は `/code-guard:setup-verify` のスキルで作る。スキルはプロジェクトの言語とビルドの設定 (`package.json`、`pyproject.toml`、`go.mod` など) を見て、速く終わる lint とテストを入れた `.claude/verify.sh` を提案する。書き込む前にユーザーに中身を見せる。
 
-検証ループは Claude に直させるための仕組みで、強制ではない。`verify.sh` を通さずに終える方法は残る。承認は、ループが走らせる直前にハッシュを照らすだけで、照らした後からの差し替えは見ない。Claude が自分で打つ `bash .claude/verify.sh` は止めない (承認が止めるのは、ループによる自動実行)。
+検証ループは Claude に直させるための仕組みで、強制ではない。`verify.sh` を通さずに終える方法は残る。承認が及ぶのは `verify.sh` 自身で、それが呼ぶファイル (`make`、`npm test`、`bash scripts/ci.sh`) は及ばない。承認は、ループが走らせる直前にハッシュを照らすだけで、照らした後からの差し替えは見ない。ask の判定は補助で、実行時に組み立てた名前は通る。Claude が自分で打つ `bash .claude/verify.sh` は止めない (承認が止めるのは、ループによる自動実行)。
 
 ## レビューのループ
 
@@ -202,7 +202,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 
 `enabledPlugins` は `pluginConfigs` と違い、プロジェクトの `.claude/settings.json` とローカルの `.claude/settings.local.json` からも読まれ、ユーザーの settings より優先される。そのため、リポジトリの settings に `"code-guard@claude-code-guard": false` があると、ガードは外れる。Claude による書き換えは、ファイルのツールのガード (`.claude/settings*` の Edit は ask) と中核のルール (Bash での書き換えは block) で止まる。クローンした時点で入っている設定は止められない。
 
-無効にされたプラグインはフックを一つも動かさないので、プラグイン自身は気づけない。知るための手段として、プラグインの外 (利用者の `~/.claude/settings.json`) に SessionStart のフックとして登録する `scripts/check-enabled.sh` を置く。カレントのプロジェクトの `.claude/settings.json` と `.claude/settings.local.json` を読み、`enabledPlugins` で `code-guard@…` が `false` なら、`systemMessage` (利用者向け) と `additionalContext` (Claude 向け) で警告する。止めない。`jq` が要る。managed settings など、その 2 つ以外の場所での無効化は見ない。登録は利用者が行う (Claude の `~/.claude` への書き込みは止まる)。上書きされないようにするには `enabledPlugins` を managed settings に置く。
+無効にされたプラグインはフックを一つも動かさないので、プラグイン自身は気づけない。知るための手段として、プラグインの外 (利用者の `~/.claude/settings.json`) に SessionStart のフックとして登録する `scripts/check-enabled.sh` を置く。カレントのプロジェクトの `.claude/settings.json` と `.claude/settings.local.json` を読み、`enabledPlugins` で `code-guard@…` が `false` なら、`systemMessage` (利用者向け) と `additionalContext` (Claude 向け) で警告する。止めない。`disableAllHooks: true` も同じ穴なので、警告する。`jq` が要り、壊れた JSON は黙って通す (Claude Code が無視するものとして)。managed settings など、その 2 つ以外の場所での無効化は見ない。登録は利用者が行う (Claude の `~/.claude` への書き込みは止まる)。上書きされないようにするには `enabledPlugins` を managed settings に置く。
 
 ## 配布
 

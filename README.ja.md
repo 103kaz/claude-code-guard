@@ -77,7 +77,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 bash <プラグインのディレクトリ>/scripts/trust-verify.sh [プロジェクトのディレクトリ]
 ```
 
-ファイルと SHA-256 を表示し、`yes` と打ったときだけ承認します。承認はプロジェクトのディレクトリごとに残り、ファイルを変えると外れます。Claude が `trust-verify.sh` を実行しようとすると Bash のガードが ask にするので、Claude が自分で `yes` と答えても、あなたの確認が要ります。承認のファイルを直接書くのは、`~/.claude/plugins` の規則で block されます。
+ファイルの全体 (制御文字は見える形にして) と SHA-256 を表示し、`yes` と打ったときだけ承認します。承認はプロジェクトのディレクトリごとに `~/.claude/code-guard/verify-trust/` の下へ残り、ファイルを変えると外れます。シンボリックリンクの `verify.sh` は承認しません。Claude が `trust-verify.sh` (や承認のコード) を実行しようとすると Bash のガードが ask にし、Bash から承認のファイルを書くのは block なので、Claude が自分で `yes` と答えても、あなたの確認が要ります。ask は補助で、実行時に組み立てた名前は通ります。承認が及ぶのは `verify.sh` 自身で、それが呼ぶファイル (`make`、`npm test`、`bash scripts/ci.sh`) には及びません。
 
 `/code-guard:setup-verify` で雛形を作れます。ビルドの設定を見て速い lint とテストを提案し、同意を得てから書きます。
 

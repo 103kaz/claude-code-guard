@@ -6,6 +6,8 @@ hook="$SCRIPTS/verify-loop.sh"
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/test-verify.XXXXXX")" || exit 1
 trap 'rm -rf "$tmp"' EXIT
+# The approvals are kept under $HOME, for both the hook and the user's terminal (where CLAUDE_PLUGIN_DATA is not set)
+export HOME="$tmp/home"; mkdir -p "$HOME"
 fail=0
 n=0
 ng() { echo "FAIL: $1"; fail=1; }
@@ -29,7 +31,7 @@ run_hook() {
 }
 trust_script="$SCRIPTS/trust-verify.sh"
 # trust_verify [answer]: the user's approval of the current .claude/verify.sh (the script asks on stdin)
-trust_verify() { printf '%s\n' "${1:-yes}" | CLAUDE_PLUGIN_DATA="$tmp/data" bash "$trust_script" "$repo" >"$tmp/trust.out" 2>&1; }
+trust_verify() { printf '%s\n' "${1:-yes}" | env -u CLAUDE_PLUGIN_DATA bash "$trust_script" "$repo" >"$tmp/trust.out" 2>&1; }
 # set_verify writes the script and approves it; set_verify_untrusted only writes it
 set_verify_untrusted() { printf '#!/bin/bash\n%s\n' "$1" >"$repo/.claude/verify.sh"; }
 set_verify() { set_verify_untrusted "$1"; trust_verify; }
@@ -251,6 +253,37 @@ repo="$repo_saved"
 repo="$tmp/noverify"; mkdir -p "$repo"
 trust_verify yes
 [ $? -ne 0 ] || ng "trust-verify.sh succeeded with no .claude/verify.sh"
+repo="$git_repo"
+
+# The whole file is shown (no cut-off), and control characters are made visible, so what is approved is what was read
+repo="$tmp/longfile"; mkdir -p "$repo/.claude"
+{ echo '#!/bin/bash'; for i in $(seq 1 250); do echo "# filler $i"; done; echo 'echo LASTLINE-AFTER-250'; printf 'echo hidden\rshown\n'; } >"$repo/.claude/verify.sh"
+trust_verify yes
+grep -q 'LASTLINE-AFTER-250' "$tmp/trust.out" || ng "trust-verify.sh did not show the whole file"
+grep -q '\^M' "$tmp/trust.out" || ng "trust-verify.sh printed a carriage return as is"
+
+# Relative invocation from the scripts directory works (the lib is found without a slash in $0)
+repo="$tmp/relative"; mkdir -p "$repo/.claude"; set_verify_untrusted 'exit 0'
+( cd "$SCRIPTS" && printf 'yes\n' | env -u CLAUDE_PLUGIN_DATA bash trust-verify.sh "$repo" >"$tmp/trust.out" 2>&1 ) || ng "trust-verify.sh failed when run as bash trust-verify.sh"
+
+# A symlink is not approved: its target can change without the hash of the link changing
+repo="$tmp/symlink"; mkdir -p "$repo/.claude"
+printf '#!/bin/bash\nexit 1\n' >"$tmp/target.sh"; ln -s "$tmp/target.sh" "$repo/.claude/verify.sh"
+trust_verify yes
+[ $? -ne 0 ] || ng "trust-verify.sh approved a symlinked verify.sh"
+echo a >"$repo/a.txt"; git init -q -b main "$repo" 2>/dev/null
+run_hook sl1 mark; echo b >>"$repo/a.txt"; run_hook sl1
+[ "$RC" = 0 ] || ng "a symlinked verify.sh ran (rc=$RC)"
+
+# The notice comes again in the same session when the content changes after it was shown (a silent skip would look like a pass)
+repo="$tmp/renotice"; git init -q -b main "$repo"; mkdir -p "$repo/.claude"
+set_verify_untrusted 'exit 1'
+run_hook rn1 mark; echo a >"$repo/a.txt"; run_hook rn1
+grep -q 'trust-verify.sh' <<<"$OUT" || ng "no first notice"
+run_hook rn1; [ -z "$OUT" ] || ng "the same unapproved content was announced twice"
+printf '#!/bin/bash\nexit 1\n# edited\n' >"$repo/.claude/verify.sh"
+run_hook rn1
+grep -q 'trust-verify.sh' <<<"$OUT" || ng "no new notice after the content changed in the same session"
 repo="$git_repo"
 
 if [ "$fail" = 0 ]; then echo "all $n verify loop checks passed"; fi

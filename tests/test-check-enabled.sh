@@ -36,6 +36,12 @@ jq -e '.hookSpecificOutput.hookEventName == "SessionStart" and (.hookSpecificOut
 proj offlocal settings.local.json '{"enabledPlugins":{"code-guard@some-other-marketplace":false}}'
 run "$tmp/offlocal"; warns "local settings switch it off (another marketplace name)"
 
+# Every hook switched off by the project settings is the same hole
+proj nohooks settings.json '{"disableAllHooks":true}'
+run "$tmp/nohooks"; warns "disableAllHooks"
+proj hooksok settings.json '{"disableAllHooks":false}'
+run "$tmp/hooksok"; quiet "spoke although hooks are not disabled"
+
 # Enabled, other plugins off, or no enabledPlugins: silent
 proj on settings.json '{"enabledPlugins":{"code-guard@claude-code-guard":true}}'
 run "$tmp/on"; quiet "spoke although it is enabled"

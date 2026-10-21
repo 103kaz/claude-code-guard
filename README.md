@@ -77,7 +77,7 @@ A `verify.sh` from a cloned repository is someone else's code, so the loop runs 
 bash <plugin dir>/scripts/trust-verify.sh [project dir]
 ```
 
-It shows the file and its SHA-256, and approves only when you type `yes`. The approval is kept per project directory; changing the file takes it away. Claude running `trust-verify.sh` is asked by the Bash guard, so a Claude that answers `yes` itself still needs your confirmation. Writing the approval file directly falls under the `~/.claude/plugins` rule (blocked).
+It shows the whole file (control characters made visible) and its SHA-256, and approves only when you type `yes`. The approval is kept per project directory under `~/.claude/code-guard/verify-trust/`; changing the file takes it away, and a symlinked `verify.sh` is never approved. Claude running `trust-verify.sh` (or the approval code) is asked by the Bash guard, and writing the approval files from Bash is blocked, so a Claude that answers `yes` itself still needs your confirmation. The ask is an aid: a script name built at run time passes. The approval covers `verify.sh` itself, not the files it calls (`make`, `npm test`, `bash scripts/ci.sh`).
 
 Create the script with `/code-guard:setup-verify`. It looks at your build files and proposes a fast lint + test script, and writes it only after you agree.
 

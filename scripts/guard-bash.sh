@@ -260,7 +260,9 @@ while IFS= read -r seg; do
   # A redirect (chmod +x f > .githooks/x) stays and is judged as a write
   seg_w="$(sed -E 's#(^|[[:space:];&|(`])chmod[[:space:]]+[ugoa]*\+x([[:space:]]+[^;&|<>()`[:space:]]+)*#\1#g' <<<"$seg")"
   if grep -Eq "$WRITE_RE" <<<"$seg_w"; then
-    if grep -Eq 'HOMECLAUDE/(hooks|settings|plugins)|\.claude/settings|\.githooks|\.git/(config|hooks)|\.git/modules/[^[:space:]]*/(config|hooks)|HOMEGITCONFIG|\.config/git/config' <<<"$seg_w"; then
+    # verify-trust holds the user's approvals of verify.sh (scripts/lib/verify-trust.sh); the path is often spelled through $CLAUDE_PLUGIN_DATA
+    if grep -Eq 'HOMECLAUDE/(hooks|settings|plugins)|\.claude/settings|\.githooks|\.git/(config|hooks)|\.git/modules/[^[:space:]]*/(config|hooks)|HOMEGITCONFIG|\.config/git/config' <<<"$seg_w" \
+       || grep -Eq "/verify-trust([/\"'[:space:];&|]|$)|(^|[[:space:]\"'=<>])verify-trust/" <<<"$seg_w"; then
       block "changing the harness (~/.claude hooks / settings / plugins, .claude/settings*, .githooks, .git/config, .git/hooks, ~/.gitconfig, ~/.config/git/config) through Bash is not allowed (chmod +x alone is fine)"
     elif grep -Eq '\.claude/(hooks|verify\.sh)' <<<"$seg_w"; then
       add_ask "changing .claude/hooks / .claude/verify.sh: confirm the user has OKed this change in chat before approving"
@@ -276,10 +278,18 @@ if [ -z "$pending_ask" ] \
   add_ask "changing .claude/hooks / .claude/verify.sh / .github/workflows: confirm the user has OKed this change in chat before approving"
 fi
 # trust-verify.sh is the user's approval of a project's verify.sh (the verify loop runs only an approved one). It asks for "yes" on stdin,
-# so Claude could answer it itself: running it needs the user's confirmation here, and the user may rather run it in a terminal
-if grep -Eq '(^|[;&|(`][[:space:]]*)([^[:space:];&|]*/)?trust-verify\.sh|(^|[;&|([:space:]`])(bash|sh|zsh|dash|source|\.)[[:space:]]+(-[^[:space:]]+[[:space:]]+)*([^;&|]*/)?trust-verify\.sh' <<<"$cmd"; then
+# so Claude could answer it itself. Any segment that names it, or the approval code (lib/verify-trust.sh), asks, unless the
+# command of that segment only reads (cat, grep, ...). Quotes are dropped first, so trust-"verify".sh is seen; a glob (trust-v*.sh) is seen too.
+# This is an aid, not a wall: a name built at run time passes
+trust_cmd="$(tr -d "\"'\\\\" <<<"$cmd" | sed -e 's/[{}]/ /g' | awk '{ gsub(/&&|\|\||[;&|()]/, "\n"); print }')"
+while IFS= read -r seg; do
+  grep -Eq 'trust-(verify|v[^[:space:]]*[*?[])|verify-trust\.sh' <<<"$seg" || continue
+  first="$(awk '{ for (i = 1; i <= NF; i++) if ($i !~ /=/) { print $i; exit } }' <<<"$seg")"
+  first="${first##*/}"
+  case "$first" in cat|grep|egrep|fgrep|rg|head|tail|less|more|wc|ls|diff|stat|file|nl|bat|shellcheck) continue ;; esac
   add_ask "trust-verify.sh approves a project's .claude/verify.sh to run at the end of every turn: confirm the user has read the script and OKed it in chat before approving"
-fi
+  break
+done <<<"$trust_cmd"
 # Reading (git config core.hooksPath / --get) is fine. Setting a value (other than .githooks) and --unset are blocked
 # git config keys are case-insensitive (core.hookspath is the same key)
 if grep -Eiq "${P}git([[:space:]]+-[^[:space:]]+)*[[:space:]]+config([^|;&]*)core\.hooksPath" <<<"$cmd_msg" \
