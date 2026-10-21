@@ -7,6 +7,10 @@ hook="$SCRIPTS/check-deps.sh"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/test-check-deps.XXXXXX")" || exit 1
 trap 'rm -rf "$tmp"' EXIT
 fail=0
+# The cases below symlink the real jq and perl into a PATH directory, so the host must have them
+for c in jq perl; do
+  command -v "$c" >/dev/null 2>&1 || { echo "SKIP: this test needs '$c' on the host PATH to build its fake PATH."; exit 1; }
+done
 ng() { echo "FAIL: $1"; fail=1; }
 
 # bin_with <dir> <command>...: a PATH directory holding only the named commands (symlinks to the real ones)

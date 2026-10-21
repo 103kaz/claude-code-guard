@@ -86,6 +86,8 @@ This is a policy block, not a hook failure. Do not retry it another way (another
 
 jq が無いとフックの入力を読めない。そのときは、そのフックが受け持つ操作をすべて block し、jq の入れ方を返す (迷ったら止める)。perl も同じ扱いにする。
 
+これとは別に、セッションの開始時 (SessionStart) に `scripts/check-deps.sh` が jq と perl を調べ、足りないものの名前と入れ方を文脈に出す。両方あるときは何も出さず、止めない (常に exit 0)。ガードが初めて動いた時点で全部が止まる前に気づくための知らせで、判定はガード側が行う。
+
 ### 中核のルール (Bash)
 
 設定で外せない。
