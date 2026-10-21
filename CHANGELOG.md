@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 (2026-10-22)
+
+- The Bash guard no longer blocks a command that only reads a protected path. A protected path (`~/.claude` hooks / settings / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks`) is now judged by the write target only: the word after a redirect `>`, the destination of `cp` / `install` / `rsync`, and any argument of the other write commands. `cp ~/.claude/settings.json .`, a redirect to another file in the same command, and `awk '$1 > 3' ~/.claude/hooks/a.sh` pass. When the destination cannot be read for sure (quotes, `\`, `$`, a trailing `+`, `-t`, an option after the first operand) or the command is `ln`, all the arguments are judged as before.
+- `trust-verify.sh` shows valid UTF-8 text (Japanese comments, for example) as is. Control characters are still shown as `^X`; ESC-like, direction-changing and invisible characters as `<U+XXXX>`; bytes that are not UTF-8 as `M-X`.
+- The README says that a push to `main` is blocked in a scratch repository too, that the sandbox `excludedCommands` match only the start of a command, and how to keep `.claude/verify.sh` as a thin entry that calls a project script (the approval does not cover the called file).
+
 ## 0.2.1 (2026-10-21)
 
 - With `doc_check_before_pr` on, typing `/code-guard:doc-code-consistency` yourself now counts as the check. It does not go through the Skill tool, so it was never recorded and `gh pr create` stayed blocked. A `UserPromptSubmit` hook records the commit when the prompt starts with the command.
