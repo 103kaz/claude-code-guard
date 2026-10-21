@@ -157,7 +157,7 @@ Developed against Claude Code 2.1.293. The hooks set `onFailure: "block"`, which
 ## Development
 
 ```bash
-bash tests/test-guard.sh    # guards, packs, settings (about a minute)
+bash tests/test-guard.sh    # guards, packs, settings (checks run in parallel; GUARD_TEST_JOBS sets how many, at most 8)
 bash tests/test-verify.sh   # verify loop
 bash tests/test-doc-check.sh  # docs check before a PR
 bash tests/test-check-deps.sh  # dependency check at session start
