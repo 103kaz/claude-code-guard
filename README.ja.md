@@ -36,10 +36,12 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 | push の形 | `--no-verify`、`--mirror`、`--delete` / `-d` / `:ref`、`--prune`、`--all` | force push (`+ref` も)、`confirm_push` が有効なときの作業ブランチへの push |
 | フックの回避 | `core.hooksPath`、`git -c`、`--config-env`、`GIT_CONFIG_*`、alias と include の設定、core / alias / include のセクションの削除、`HOME=` / `XDG_CONFIG_HOME=` を変えた git、`~/.gitconfig` / `~/.config/git/config` の書き換え、commit / merge の `--no-verify` (`commit -n`) | |
 | 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、git の資格情報 (`~/.git-credentials`、`git credential fill`)、キーチェーンの値。`<`、`rev:`、`--opt=` の後の名前 (terraform の `-var-file=` は除く) と、展開するとこれらになるグロブやブレース (`.en?`、`.e{n,x}v`) も。名前は大文字小文字を区別しない (`.ENV`) | 文字列を組み立てるコマンド置換 (`cat $(printf .e%snv)`) |
-| ハーネス | `~/.claude` の settings・フック・プラグイン、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` (`.git/modules/` の下のサブモジュールも) の Bash での書き換え。書き換えに数えるのは、リダイレクト、`sed` / `perl` / `ruby -i`、`awk -i inplace`、ファイルのコマンド、`dd`、`rsync`、`curl -o`、`wget -O`、`git checkout` / `restore` / `apply` / `am`。`cd` の後の相対パスも | `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
+| ハーネス | `~/.claude` の settings・フック・プラグイン、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` (`.git/modules/` の下のサブモジュールも) の Bash での書き換え。書き換えに数えるのは、リダイレクト、`sed` / `perl` / `ruby -i`、`awk -i inplace`、ファイルのコマンド、`dd`、`rsync`、`curl -o`、`wget -O`、`git checkout` / `restore` / `apply` / `am`。`cd` の後の相対パスも。保護パスは書き込み先だけで見るので、`cp ~/.claude/settings.json .` のようなコピー元の読み出しは止めません | `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
 | 取得したコードの実行 | `curl` / `wget` の出力を、シェル (`/bin/sh`、`env bash` など。パイプの何段後でも) やインタプリタ (`python3`、`perl`、`node` など。curl のすぐ次の段か、後ろの段で標準入力からプログラムを読む形) に渡すパイプ | プロセス置換、`bash -c "$(curl ...)"`、`eval` |
 | 消す操作 | ルートやホームへの `rm -r` (`--` や長いオプションの後も) | ビルドの生成物でないディレクトリの `rm -r`、`git clean`、`reset --hard`、`restore`、`checkout [<rev>] --`、`stash drop`、`branch -D`、`xargs rm`、`find -delete` / `-exec rm` |
 | マシンの設定 | | `sudo`、`launchctl` の登録、`crontab`、`defaults write` |
+
+守るブランチは、ブランチ名で判定します。使い捨ての一時リポジトリかどうかは見ないので、一時リポジトリでの `main` への push も止まります。例外は、届く空のリモートへの初回 push (force なし、リモート追跡ブランチがまだ無いとき) だけです (これは ask)。push を試すときは作業ブランチを使います。
 
 コミットメッセージや PR 本文 (`-m`、`--body`、heredoc) に書いただけの文字列は判定しません。ただし `bash -c`、`eval`、python などを含むコマンドでは除きません。ダブルクォートの値や引用符の無い heredoc の中の `$(...)` とバッククォートは実行されるので、判定します。
 
@@ -79,9 +81,20 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 bash <プラグインのディレクトリ>/scripts/trust-verify.sh [プロジェクトのディレクトリ]
 ```
 
-ファイルの全体 (制御文字は見える形にして) と SHA-256 を表示し、`yes` と打ったときだけ承認します。承認はプロジェクトのディレクトリごとに `~/.claude/code-guard/verify-trust/` の下へ残り、ファイルを変えると外れます。シンボリックリンクの `verify.sh` は承認しません。Claude が `trust-verify.sh` (や承認のコード) を実行しようとすると Bash のガードが ask にし、Bash から承認のファイルを書くのは block なので、Claude が自分で `yes` と答えても、あなたの確認が要ります。ask は補助で、実行時に組み立てた名前は通ります。承認が及ぶのは `verify.sh` 自身で、それが呼ぶファイル (`make`、`npm test`、`bash scripts/ci.sh`) には及びません。
+ファイルの全体 (制御文字は見える形にして。日本語のコメントなど、表示できる UTF-8 はそのまま) と SHA-256 を表示し、`yes` と打ったときだけ承認します。承認はプロジェクトのディレクトリごとに `~/.claude/code-guard/verify-trust/` の下へ残り、ファイルを変えると外れます。シンボリックリンクの `verify.sh` は承認しません。Claude が `trust-verify.sh` (や承認のコード) を実行しようとすると Bash のガードが ask にし、Bash から承認のファイルを書くのは block なので、Claude が自分で `yes` と答えても、あなたの確認が要ります。ask は補助で、実行時に組み立てた名前は通ります。承認が及ぶのは `verify.sh` 自身で、それが呼ぶファイル (`make`、`npm test`、`bash scripts/ci.sh`) には及びません。
 
 `/code-guard:setup-verify` で雛形を作れます。ビルドの設定を見て速い lint とテストを提案し、同意を得てから書きます。
+
+### pre-push や CI から同じ検査を呼ぶ
+
+Stop フックが走らせるのは `.claude/verify.sh` だけです。同じ検査を別の場所 (`.githooks/pre-push`、CI) からも呼びたいときは、`.claude/verify.sh` を薄い入口にして、検査の本体をプロジェクトのスクリプトに置きます。
+
+```bash
+#!/bin/bash
+exec "${CLAUDE_PROJECT_DIR:-.}/scripts/verify.sh"
+```
+
+`.githooks/pre-push` や CI は `scripts/verify.sh` を直接呼びます。承認の対象は `.claude/verify.sh` の中身だけで、そこから呼ぶファイルは含まれません。入口を承認した後で `scripts/verify.sh` が変わると (他人のコミットを `git pull` したときなど)、あらためて確認されずに走ります。この形は、中身を信頼できるリポジトリだけで使います。クローンしたリポジトリでは、検査を `.claude/verify.sh` に直接書きます。
 
 ## レビューのループ
 
@@ -150,6 +163,8 @@ Claude が `~/.claude` を書き換えるのは止まるので、あなたの手
 ```
 
 空のリモートへの初回 push かどうかは `git ls-remote` で判定します。これは外向きの通信を使うので、リモートのホストが `allowedDomains` に無いと失敗し、ガードは block に倒れます。`excludedCommands` は、使う `gh` のサブコマンドに合わせて変えます。
+
+`excludedCommands` が一致するのは、コマンドの先頭だけです。`cd x && gh pr view` のような複合コマンドは除外されず、サンドボックスの中で動くので、除外したいコマンドは単独で実行します。
 
 Claude Code 2.1.293 と上の設定で確かめました。2 つのテストスクリプトは通り、github.com への `git ls-remote` は成功し、プロジェクト外への書き込みは Operation not permitted で失敗し、他のホストは 403 で拒否されます。
 

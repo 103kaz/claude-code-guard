@@ -36,10 +36,12 @@ Each decision is one of: **block** (exit 2, cannot be approved), **ask** (a conf
 | Push shape | `--no-verify`, `--mirror`, `--delete` / `-d` / `:ref`, `--prune`, `--all` | force push (`+ref` included), every work-branch push when `confirm_push` is on |
 | Hook bypass | `core.hooksPath`, `git -c`, `--config-env`, `GIT_CONFIG_*`, alias / include settings, removing the core / alias / include section, git with `HOME=` / `XDG_CONFIG_HOME=`, writes to `~/.gitconfig` / `~/.config/git/config`, `--no-verify` on commit / merge (`commit -n`) | |
 | Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, git credentials (`~/.git-credentials`, `git credential fill`), keychain values. Names after `<`, `rev:` and `--opt=` (except terraform's `-var-file=`), and globs or braces that expand to one (`.en?`, `.e{n,x}v`) are included. Names are matched without case (`.ENV`) | a command substitution that builds a string (`cat $(printf .e%snv)`) |
-| Harness | Bash writes to `~/.claude` settings / hooks / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks` (submodules under `.git/modules/` included). Writes are redirects, `sed` / `perl` / `ruby -i`, `awk -i inplace`, file commands, `dd`, `rsync`, `curl -o`, `wget -O`, and `git checkout` / `restore` / `apply` / `am`; relative paths after `cd` count | Bash writes to `.claude/hooks`, `.claude/verify.sh`, `.github/workflows` |
+| Harness | Bash writes to `~/.claude` settings / hooks / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks` (submodules under `.git/modules/` included). Writes are redirects, `sed` / `perl` / `ruby -i`, `awk -i inplace`, file commands, `dd`, `rsync`, `curl -o`, `wget -O`, and `git checkout` / `restore` / `apply` / `am`; relative paths after `cd` count. Only the write target is judged, so reading a protected path (`cp ~/.claude/settings.json .`) is not blocked | Bash writes to `.claude/hooks`, `.claude/verify.sh`, `.github/workflows` |
 | Fetched code | `curl` / `wget` piped to a shell (`/bin/sh`, `env bash` ..., at any later stage) or an interpreter (`python3`, `perl`, `node` ...; right after `curl`, or later when it reads its program from stdin) | process substitution, `bash -c "$(curl ...)"`, `eval` |
 | Deleting | `rm -r` on `/` or `~` (after `--` and long options too) | `rm -r` outside build directories, `git clean`, `reset --hard`, `restore`, `checkout [<rev>] --`, `stash drop`, `branch -D`, `xargs rm`, `find -delete` / `-exec rm` |
 | Machine settings | | `sudo`, `launchctl` registration, `crontab`, `defaults write` |
+
+Protected branches are judged by branch name, not by whether the repository is a throwaway. A push to `main` in a scratch repository is blocked too, unless it is a first push (no force, no remote-tracking branch yet) to a reachable, empty remote; that one asks. To test pushing, use a work branch.
 
 Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar. A `$(...)` or backtick inside a double-quoted value or an unquoted heredoc runs, so it is judged.
 
@@ -79,9 +81,20 @@ A `verify.sh` from a cloned repository is someone else's code, so the loop runs 
 bash <plugin dir>/scripts/trust-verify.sh [project dir]
 ```
 
-It shows the whole file (control characters made visible) and its SHA-256, and approves only when you type `yes`. The approval is kept per project directory under `~/.claude/code-guard/verify-trust/`; changing the file takes it away, and a symlinked `verify.sh` is never approved. Claude running `trust-verify.sh` (or the approval code) is asked by the Bash guard, and writing the approval files from Bash is blocked, so a Claude that answers `yes` itself still needs your confirmation. The ask is an aid: a script name built at run time passes. The approval covers `verify.sh` itself, not the files it calls (`make`, `npm test`, `bash scripts/ci.sh`).
+It shows the whole file (control characters made visible; valid UTF-8 text such as Japanese comments is shown as is) and its SHA-256, and approves only when you type `yes`. The approval is kept per project directory under `~/.claude/code-guard/verify-trust/`; changing the file takes it away, and a symlinked `verify.sh` is never approved. Claude running `trust-verify.sh` (or the approval code) is asked by the Bash guard, and writing the approval files from Bash is blocked, so a Claude that answers `yes` itself still needs your confirmation. The ask is an aid: a script name built at run time passes. The approval covers `verify.sh` itself, not the files it calls (`make`, `npm test`, `bash scripts/ci.sh`).
 
 Create the script with `/code-guard:setup-verify`. It looks at your build files and proposes a fast lint + test script, and writes it only after you agree.
+
+### Calling the same check from pre-push or CI
+
+The Stop hook runs only `.claude/verify.sh`. To run the same check from somewhere else (a `.githooks/pre-push`, CI), keep `.claude/verify.sh` as a thin entry and put the checks in a script of your project:
+
+```bash
+#!/bin/bash
+exec "${CLAUDE_PROJECT_DIR:-.}/scripts/verify.sh"
+```
+
+`.githooks/pre-push` and CI call `scripts/verify.sh` directly. The approval covers only the content of `.claude/verify.sh`, not the files it calls. After you approve the entry, a change to `scripts/verify.sh` (a `git pull` of someone else's commits, for example) runs without asking again. Use this layout only in a repository whose scripts you trust; in a cloned repository, keep the checks in `.claude/verify.sh` itself.
 
 ## Review loop
 
@@ -150,6 +163,8 @@ The sandbox limits writes and network at the OS level; code-guard stops operatio
 ```
 
 The guard decides whether a first push to an empty remote is allowed with `git ls-remote`, which makes an outbound request. If the remote's host is not in `allowedDomains`, the request fails and the guard falls back to block. Adjust `excludedCommands` to the `gh` subcommands you use.
+
+`excludedCommands` matches only the start of a command. A compound command such as `cd x && gh pr view` is not excluded and runs inside the sandbox, so run excluded commands on their own.
 
 Checked with Claude Code 2.1.293 and the settings above: both test scripts pass, `git ls-remote` against github.com succeeds, writes outside the project fail with "Operation not permitted", and other hosts get 403.
 

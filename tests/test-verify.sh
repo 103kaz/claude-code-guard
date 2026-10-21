@@ -6,6 +6,14 @@ hook="$SCRIPTS/verify-loop.sh"
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/test-verify.XXXXXX")" || exit 1
 trap 'rm -rf "$tmp"' EXIT
+# On macOS /usr/bin/git is an xcrun shim. With HOME changed (below) it tries to write a cache outside the places the sandbox
+# allows, and its error lands in the hook's stderr. Run the real git through a symlink found before HOME changes
+if [ "$(uname)" = Darwin ]; then
+  real_git="$(xcrun -f git 2>/dev/null)"
+  if [ -x "$real_git" ]; then
+    mkdir -p "$tmp/bin" && printf '#!/bin/bash\nexec "%s" "$@"\n' "$real_git" >"$tmp/bin/git" && chmod +x "$tmp/bin/git" && export PATH="$tmp/bin:$PATH"
+  fi
+fi
 # The approvals are kept under $HOME, for both the hook and the user's terminal (where CLAUDE_PLUGIN_DATA is not set)
 export HOME="$tmp/home"; mkdir -p "$HOME"
 fail=0
@@ -284,6 +292,19 @@ repo="$tmp/longfile"; mkdir -p "$repo/.claude"
 trust_verify yes
 grep -q 'LASTLINE-AFTER-250' "$tmp/trust.out" || ng "trust-verify.sh did not show the whole file"
 grep -q '\^M' "$tmp/trust.out" || ng "trust-verify.sh printed a carriage return as is"
+
+# Valid UTF-8 (Japanese comments) is shown as is. What can hide code (ESC, a bidi override, a zero-width space) and
+# bytes that are not UTF-8 are still made visible
+repo="$tmp/utf8file"; mkdir -p "$repo/.claude"
+{ echo '#!/bin/bash'; echo '# 日本語のコメント'; printf 'echo a\033[2Jb\n'; printf 'echo \xe2\x80\xaeevil\n'; printf 'echo x\xe2\x80\x8by\n'; printf 'echo \xff\xfe\n'; printf 'echo p\xe3\x85\xa4q\n'; } >"$repo/.claude/verify.sh"
+trust_verify yes
+grep -q '日本語のコメント' "$tmp/trust.out" || ng "trust-verify.sh did not show valid UTF-8 as is"
+grep -q '\^\[\[2J' "$tmp/trust.out" || ng "trust-verify.sh printed ESC as is"
+grep -q 'U+202E' "$tmp/trust.out" || ng "trust-verify.sh did not make a bidi override visible"
+grep -q 'U+200B' "$tmp/trust.out" || ng "trust-verify.sh did not make a zero-width space visible"
+grep -q 'U+3164' "$tmp/trust.out" || ng "trust-verify.sh did not make a Hangul filler visible"
+grep -q 'M-\^?' "$tmp/trust.out" || ng "trust-verify.sh did not make an invalid byte visible"
+! grep -q $'\xe2\x80\xae' "$tmp/trust.out" || ng "trust-verify.sh printed a bidi override as is"
 
 # Relative invocation from the scripts directory works (the lib is found without a slash in $0)
 repo="$tmp/relative"; mkdir -p "$repo/.claude"; set_verify_untrusted 'exit 0'
