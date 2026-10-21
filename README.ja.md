@@ -15,9 +15,11 @@ Claude Code にハーネスとループを組み込むプラグインです。�
 
 ## 導入
 
+ターミナルとデスクトップ版それぞれの手順、入ったことの確かめ方、設定、更新、削除は [docs/setup.ja.md](docs/setup.ja.md) にあります。要点だけ書くと、シェルで次を実行し、新しくセッションを始めます。
+
 ```bash
-/plugin marketplace add 103kaz/claude-code-guard
-/plugin install code-guard@claude-code-guard
+claude plugin marketplace add 103kaz/claude-code-guard
+claude plugin install code-guard@claude-code-guard
 ```
 
 bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で、Windows は対象外です。`jq` か `perl` が無いときは、そのフックが受け持つ操作をすべて止め、入れ方を返します。セッションの開始時にも、足りないものを知らせます (両方あるときは何も出しません)。
