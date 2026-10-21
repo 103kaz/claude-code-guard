@@ -35,3 +35,5 @@ jobs:
         run: bash tests/test-verify.sh
       - name: Docs check gate tests
         run: bash tests/test-doc-check.sh
+      - name: Dependency check tests
+        run: bash tests/test-check-deps.sh

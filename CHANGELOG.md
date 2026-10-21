@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A SessionStart hook names `jq` or `perl` when it is missing (silent otherwise, never blocks), so the problem shows before the guards start blocking.
 - `/code-guard:review-loop`: runs verify, review and fix over the branch diff until a lap finds nothing.
 
 ## 0.1.0 (2026-10-21)

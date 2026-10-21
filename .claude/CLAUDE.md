@@ -14,6 +14,7 @@ Claude Code のプラグイン code-guard。仕様は `docs/spec.md`、使い方
 bash tests/test-guard.sh
 bash tests/test-verify.sh
 bash tests/test-doc-check.sh
+bash tests/test-check-deps.sh
 ```
 
 ## PR

@@ -20,7 +20,7 @@ Claude Code が実行しようとする危ない操作をフックで止め、�
 /plugin install code-guard@claude-code-guard
 ```
 
-bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で、Windows は対象外です。`jq` か `perl` が無いときは、そのフックが受け持つ操作をすべて止め、入れ方を返します。
+bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で、Windows は対象外です。`jq` か `perl` が無いときは、そのフックが受け持つ操作をすべて止め、入れ方を返します。セッションの開始時にも、足りないものを知らせます (両方あるときは何も出しません)。
 
 ## 止めるもの
 
@@ -134,6 +134,7 @@ Claude Code 2.1.293 で開発しています。フックには `onFailure: "bloc
 bash tests/test-guard.sh    # ガード、パック、設定 (1 分ほど)
 bash tests/test-verify.sh   # 検証ループ
 bash tests/test-doc-check.sh  # PR の前の照合
+bash tests/test-check-deps.sh  # セッション開始時の依存の確認
 ```
 
 ガードの判定を変えるときは、先に `tests/test-guard.sh` にケースを足します。

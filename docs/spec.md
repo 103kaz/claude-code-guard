@@ -28,6 +28,7 @@ claude-code-guard/
 │   ├── guard-mcp.sh        # PreToolUse(mcp__.*)
 │   ├── fmt-terraform.sh    # PostToolUse(Edit|Write): .tf を整形
 │   ├── verify-loop.sh      # UserPromptSubmit と Stop
+│   ├── check-deps.sh       # SessionStart: jq / perl が無いときだけ知らせる (止めない)
 │   ├── doc-check.sh        # PostToolUse(Skill) と PreToolUse(Bash|mcp__.*): PR の前の照合 (doc_check_before_pr)
 │   └── lib/                # 共通の関数 (判定結果の出力、設定の読み込み)
 ├── skills/
@@ -40,7 +41,8 @@ claude-code-guard/
 ├── tests/
 │   ├── test-guard.sh
 │   ├── test-verify.sh
-│   └── test-doc-check.sh
+│   ├── test-doc-check.sh
+│   └── test-check-deps.sh
 ├── docs/
 │   └── spec.md
 ├── .github/workflows/
@@ -218,6 +220,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | ガード | `tests/test-guard.sh`。Bash のガード、ファイルのツールのガード、パックの有効・無効、曖昧な形の確認を試す |
 | 検証ループ | `tests/test-verify.sh` |
 | PR の前の照合 | `tests/test-doc-check.sh` |
+| 依存の確認 | `tests/test-check-deps.sh` |
 | マニフェスト | `claude plugin validate --strict` |
 | CI | GitHub Actions。PR では ubuntu、main への push では ubuntu と macOS。macOS は `/bin/bash` (3.2) で流す。public リポジトリなので無料 |
 
