@@ -157,7 +157,7 @@ Claude Code 2.1.293 で開発しています。フックには `onFailure: "bloc
 ## 開発
 
 ```bash
-bash tests/test-guard.sh    # ガード、パック、設定 (1 分ほど)
+bash tests/test-guard.sh    # ガード、パック、設定 (チェックは並列に走る。GUARD_TEST_JOBS で数を変えられる。最大 8)
 bash tests/test-verify.sh   # 検証ループ
 bash tests/test-doc-check.sh  # PR の前の照合
 bash tests/test-check-deps.sh  # セッション開始時の依存の確認

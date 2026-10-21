@@ -37,17 +37,42 @@ git -C "$TMPROOT/repo_busy" push -q origin main
 git -C "$TMPROOT/repo_busy" update-ref -d refs/remotes/origin/main
 GUARD_CWD="$TMPROOT/repo_feat"
 
-check() {
-  local want="$1" cmd="$2" got out
+# The checks are independent, so they run in the background, GUARD_TEST_JOBS (default: the number of CPUs, at most 8) at a time.
+# A runner _run_* prints a FAIL line (or nothing) into $RES/<serial>; the lines are printed in call order at the end.
+# The function that calls it runs in a subshell started at call time, so GUARD_CWD and the environment are those of the call
+export GIT_OPTIONAL_LOCKS=0   # a git status in a check must not write the index while another check reads it
+JOBS="${GUARD_TEST_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
+case "$JOBS" in ''|*[!0-9]*) JOBS=4 ;; esac
+[ "$JOBS" -ge 1 ] || JOBS=1
+[ "$JOBS" -le 8 ] || JOBS=8
+RES="$TMPROOT/res"; mkdir -p "$RES"
+pending=0
+spawn() {
   n=$((n + 1))
+  # A runner that dies without printing would leave an empty file, which reads as a pass: a non-zero exit is a failure
+  ( ( "$@" ) >"$RES/$n" 2>&1 || echo "FAIL (test runner exited $?): $*" >>"$RES/$n" ) &
+  pending=$((pending + 1))
+  if [ "$pending" -ge "$JOBS" ]; then wait; pending=0; fi
+}
+collect() {
+  local f
+  wait; pending=0
+  for f in $(ls "$RES" | sort -n); do
+    if [ -s "$RES/$f" ]; then cat "$RES/$f"; fail=1; fi
+  done
+  rm -f "$RES"/*
+}
+
+_run_check() {
+  local want="$1" cmd="$2" got out
   out="$(cd "$GUARD_CWD" && printf '%s' "$cmd" | jq -Rs '{tool_name:"Bash",tool_input:{command:.}}' | bash "$HOOKS/guard-bash.sh" 2>/dev/null)"
   got=$?
   if [ "$got" = 0 ] && grep -q '"permissionDecision": "ask"' <<<"$out"; then got=ask; fi
   if [ "$got" != "$want" ]; then
     echo "FAIL (want $want, got $got): $cmd"
-    fail=1
   fi
 }
+check() { spawn _run_check "$@"; }
 
 BLOCK=2
 ALLOW=0
@@ -684,18 +709,17 @@ check $ALLOW 'cat prod.tfvars.example'
 check $ALLOW 'gh auth status'
 
 # --- MCP のガード (guard-mcp.sh) ---
-check_mcp() {
+_run_check_mcp() {
   local want="$1" tool="$2" input="${3:-}" got out
   [ -n "$input" ] || input='{}'
-  n=$((n + 1))
   out="$(jq -n --arg t "$tool" --argjson i "$input" '{tool_name:$t,tool_input:$i}' | bash "$HOOKS/guard-mcp.sh" 2>/dev/null)"
   got=$?
   if [ "$got" = 0 ] && grep -q '"permissionDecision": "ask"' <<<"$out"; then got=ask; fi
   if [ "$got" != "$want" ]; then
     echo "FAIL (want $want, got $got): mcp $tool $input"
-    fail=1
   fi
 }
+check_mcp() { spawn _run_check_mcp "$@"; }
 check_mcp $ASK   'mcp__cf__d1_database_delete'
 check_mcp $ASK   'mcp__cf__r2_bucket_delete'
 check_mcp $ASK   'mcp__cf__kv_namespace_delete'
@@ -855,18 +879,17 @@ done
 
 # --- userConfig: confirm_push, protected branches, packs ---
 # check_env <want> <cmd> VAR=value...: run guard-bash with extra environment variables
-check_env() {
+_run_check_env() {
   local want="$1" cmd="$2" got out
   shift 2
-  n=$((n + 1))
   out="$(cd "$GUARD_CWD" && printf '%s' "$cmd" | jq -Rs '{tool_name:"Bash",tool_input:{command:.}}' | env "$@" bash "$HOOKS/guard-bash.sh" 2>/dev/null)"
   got=$?
   if [ "$got" = 0 ] && grep -q '"permissionDecision": "ask"' <<<"$out"; then got=ask; fi
   if [ "$got" != "$want" ]; then
     echo "FAIL (want $want, got $got): $cmd [$*]"
-    fail=1
   fi
 }
+check_env() { spawn _run_check_env "$@"; }
 # confirm_push: default on asks for a work-branch push, off passes. Protected-branch block does not depend on it
 check_env $ASK   'git push origin feat/x' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=true
 check_env $ASK   'git push origin feat/x' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=
@@ -998,17 +1021,16 @@ if ! grep -q 'force push' <<<"$out" && ! grep -q 'overwrites remote history' <<<
 if ! grep -q 'may be a false positive; approve if it is\] runs code fetched' <<<"$out"; then echo "FAIL: false-positive label is not on the fetched-code reason: $out"; fail=1; fi
 
 # --- file-tool guard (guard-file.sh) ---
-check_file() {
+_run_check_file() {
   local want="$1" tool="$2" path="$3" got out
-  n=$((n + 1))
   out="$(jq -n --arg t "$tool" --arg p "$path" '{tool_name:$t,tool_input:{file_path:$p}}' | bash "$HOOKS/guard-file.sh" 2>/dev/null)"
   got=$?
   if [ "$got" = 0 ] && grep -q '"permissionDecision": "ask"' <<<"$out"; then got=ask; fi
   if [ "$got" != "$want" ]; then
     echo "FAIL (want $want, got $got): file $tool $path"
-    fail=1
   fi
 }
+check_file() { spawn _run_check_file "$@"; }
 check_file $BLOCK Read '/work/app/.env'
 check_file $BLOCK Read '/work/app/.env.production'
 check_file $BLOCK Read '/work/infra/prod.tfvars'
@@ -1388,6 +1410,8 @@ check $ALLOW 'git config --unset alias.p'
 check $ALLOW 'git config --remove-section user'
 check $BLOCK 'git config set core.hooksPath /dev/null'
 check $BLOCK "git config set alias.p 'push --no-verify'"
+
+collect
 
 # A failing detector is asked, not passed silently
 tmp_hooks="$(mktemp -d "${TMPDIR:-/tmp}/code-guard-test.XXXXXX")"
