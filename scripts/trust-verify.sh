@@ -21,8 +21,26 @@ sha="$(verify_sha "$verify")"
 
 echo "File:   $verify"
 echo "SHA256: $sha"
-echo "--- content (all of it; control characters are shown as ^X) ---"
-cat -v "$verify"
+echo "--- content (all of it; valid UTF-8 text is shown as is; control characters are shown as ^X, invisible or direction-changing characters as <U+XXXX>, bytes that are not UTF-8 as M-X) ---"
+# Like cat -v, but a valid UTF-8 character that is printable passes through. Control, format (bidi overrides, zero-width),
+# line/paragraph separator, private-use and unassigned characters are shown as <U+XXXX>
+perl -e '
+  my $u8 = qr/[\xC2-\xDF][\x80-\xBF]|\xE0[\xA0-\xBF][\x80-\xBF]|[\xE1-\xEC\xEE\xEF][\x80-\xBF]{2}|\xED[\x80-\x9F][\x80-\xBF]|\xF0[\x90-\xBF][\x80-\xBF]{2}|[\xF1-\xF3][\x80-\xBF]{3}|\xF4[\x80-\x8F][\x80-\xBF]{2}/;
+  local $/; binmode STDIN; my $s = <STDIN>; my $o = "";
+  while ($s =~ /\G(?:($u8)|(.))/gcs) {
+    if (defined $1) {
+      my $ch = $1; utf8::decode(my $c = $ch);
+      $o .= ($c =~ /^[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Zs}\p{Co}\p{Cn}\p{Cs}\p{Mn}\p{Me}\x{115F}\x{1160}\x{2800}\x{3164}\x{FFA0}]$/ && $c ne "\x{3000}") ? sprintf("<U+%04X>", ord $c) : $ch;
+    } else {
+      my $b = ord $2;
+      if ($b == 10 || $b == 9) { $o .= $2 }
+      elsif ($b < 32) { $o .= "^" . chr($b + 64) }
+      elsif ($b == 127) { $o .= "^?" }
+      elsif ($b < 128) { $o .= $2 }
+      else { my $l = $b - 128; $o .= "M-" . ($l < 32 ? "^" . chr($l + 64) : $l == 127 ? "^?" : chr($l)) }
+    }
+  }
+  binmode STDOUT; print $o' <"$verify"
 echo "--- end ---"
 printf 'The verify loop will run this script at the end of every turn that changes files. Approve it? Type "yes": '
 read -r answer

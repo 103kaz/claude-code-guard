@@ -198,9 +198,11 @@ fi
 # --- Changes to the harness itself (disabling the guard) (core) ---
 # Ways to write a file: a redirect, in-place editors (sed / perl / ruby -i, awk -i inplace), file commands, dd / rsync,
 # downloads to a file (curl -o / -O, wget -O), and git commands that write the working tree (checkout, restore, apply, am)
-WRITE_FILE_RE='>[[:space:]]*[^&[:space:]]|sed[[:space:]]+(-[a-zA-Z]*i|--in-place)|(perl|ruby)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-[a-zA-Z]*i|awk[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-i[[:space:]]*inplace|(^|[[:space:];&|(`])(rm|mv|cp|tee|chmod|ln|truncate|install|dd|rsync)[[:space:]]|(curl|wget)[^|;&]*[[:space:]](-[a-zA-Z]*[oO]|--output(-document)?|--remote-name)([[:space:]=]|$)'
+WRITE_VERB_RE='sed[[:space:]]+(-[a-zA-Z]*i|--in-place)|(perl|ruby)([[:space:]]+-[^[:space:]]+)*[[:space:]]+-[a-zA-Z]*i|awk[[:space:]]+(-[^[:space:]]+[[:space:]]+)*-i[[:space:]]*inplace|(^|[[:space:];&|(`])(rm|mv|cp|tee|chmod|ln|truncate|install|dd|rsync)[[:space:]]|(curl|wget)[^|;&]*[[:space:]](-[a-zA-Z]*[oO]|--output(-document)?|--remote-name)([[:space:]=]|$)'
+WRITE_FILE_RE='>[[:space:]]*[^&[:space:]]|'"$WRITE_VERB_RE"
 # git writes count only next to the path in the same segment (git checkout b && cat .claude/hooks/x is a read)
-WRITE_RE="${WRITE_FILE_RE}|git[^|;&]*[[:space:]](checkout|restore|apply|am)[[:space:]]"
+GIT_WRITE_RE='git[^|;&]*[[:space:]](checkout|restore|apply|am)[[:space:]]'
+WRITE_RE="${WRITE_FILE_RE}|${GIT_WRITE_RE}"
 # Drop harmless redirects (>/dev/null, 2>&1) before judging writes
 cmd_nr="$(sed -E 's#[0-9]*>>?[[:space:]]*/dev/null##g; s#[0-9]*>&[0-9-]##g' <<<"$cmd")"
 # A grep / rg search pattern (the first quoted argument after options) is not a write target, so it is dropped
@@ -259,14 +261,41 @@ while IFS= read -r seg; do
   # chmod +x does not change content, so it is not a write. Arguments run up to ; & | < >.
   # A redirect (chmod +x f > .githooks/x) stays and is judged as a write
   seg_w="$(sed -E 's#(^|[[:space:];&|(`])chmod[[:space:]]+[ugoa]*\+x([[:space:]]+[^;&|<>()`[:space:]]+)*#\1#g' <<<"$seg")"
-  if grep -Eq "$WRITE_RE" <<<"$seg_w"; then
+  # A segment with no write at all needs no further look (and no perl)
+  grep -Eq "$WRITE_RE" <<<"$seg_w" || continue
+  # Only the write targets are judged against the protected paths: a redirect target, and the arguments of a write verb
+  # (for cp / install / rsync only the destination, the last argument: cp ~/.claude/settings.json . reads it. A trailing \ of
+  # find -exec cp {} dest \; and a # comment are dropped first. When the destination cannot be read for sure (quotes, \, $,
+  # a terminating +, -t / --target, an option after the first operand: it may take a value), all the arguments are judged.
+  # ln is always judged whole: a link to a protected path lets a later write through the link).
+  # A redirect target built from a variable ($f) cannot be read, so the whole segment is judged then. A > inside a quoted
+  # argument (awk '$1 > $2') is not a redirect. If the helper fails, the whole segment is judged as before
+  wt="$(perl -e 'my $s = <STDIN>; chomp $s; my (@t, $nl);
+    while ($s =~ /\d*>>?\|?[ \t]*([^\s;&|<>()]*)/g) {
+      my $t = $1; next if $t eq "";
+      if ($t =~ /[\$`]/) { $nl = 1 unless $t =~ /^[^"\x27].*["\x27]$/ } else { push @t, $t } }
+    (my $r = $s) =~ s/\d*>>?\|?[ \t]*[^\s;&|<>()]*//g;
+    $r =~ s{((?:^|[\s;&|(`])(?:cp|install|rsync)\s+)([^;&|<>()`]*)}{
+      my ($pre, $orig) = ($1, $2); my $a = $orig;
+      $a =~ s/\s\\\s*$//;
+      my $whole = $a =~ /["\x27\\\$]|(?:^|\s)\+\s*$|(?:^|\s)(?:-[a-zA-Z]*t|--target|--remove-source)/;
+      $a =~ s/\s#.*//s unless $whole;
+      my @w = split " ", $a; my $seen = 0;
+      for (@w) { if (/^-/) { $whole = 1 if $seen } else { $seen = 1 } }
+      if ($whole) { $pre . $orig } else { my @o = grep { !/^-/ } @w; $pre . (@o ? $o[-1] : "") } }ge;
+    print join(" ", @t), ($nl ? " $s" : ""), "\n", $r, "\n"' <<<"$seg_w" 2>/dev/null)" || wt="$seg_w"$'\n'"$seg_w"
+  wt_redirect="${wt%%$'\n'*}"
+  wt_rest="${wt#*$'\n'}"
+  seg_t="$wt_redirect"
+  if grep -Eq "${WRITE_VERB_RE}|${GIT_WRITE_RE}" <<<"$wt_rest"; then seg_t="$seg_t $wt_rest"; fi
+  if [ -n "${seg_t// }" ]; then
     # verify-trust holds the user's approvals of verify.sh (scripts/lib/verify-trust.sh); the path is often spelled through $CLAUDE_PLUGIN_DATA
-    if grep -Eq 'HOMECLAUDE/(hooks|settings|plugins)|\.claude/settings|\.githooks|\.git/(config|hooks)|\.git/modules/[^[:space:]]*/(config|hooks)|HOMEGITCONFIG|\.config/git/config' <<<"$seg_w" \
-       || grep -Eq "/verify-trust([/\"'[:space:];&|]|$)|(^|[[:space:]\"'=<>])verify-trust/" <<<"$seg_w"; then
+    if grep -Eq 'HOMECLAUDE/(hooks|settings|plugins)|\.claude/settings|\.githooks|\.git/(config|hooks)|\.git/modules/[^[:space:]]*/(config|hooks)|HOMEGITCONFIG|\.config/git/config' <<<"$seg_t" \
+       || grep -Eq "/verify-trust([/\"'[:space:];&|]|$)|(^|[[:space:]\"'=<>])verify-trust/" <<<"$seg_t"; then
       block "changing the harness (~/.claude hooks / settings / plugins, .claude/settings*, .githooks, .git/config, .git/hooks, ~/.gitconfig, ~/.config/git/config) through Bash is not allowed (chmod +x alone is fine)"
-    elif grep -Eq '\.claude/(hooks|verify\.sh)' <<<"$seg_w"; then
+    elif grep -Eq '\.claude/(hooks|verify\.sh)' <<<"$seg_t"; then
       add_ask "changing .claude/hooks / .claude/verify.sh: confirm the user has OKed this change in chat before approving"
-    elif grep -Eq '\.github/workflows' <<<"$seg_w"; then
+    elif grep -Eq '\.github/workflows' <<<"$seg_t"; then
       add_ask "changing .github/workflows (a path that uses Secrets): confirm the user has OKed this change in chat before approving"
     fi
   fi
