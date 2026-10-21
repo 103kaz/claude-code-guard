@@ -15,6 +15,7 @@ bash tests/test-guard.sh
 bash tests/test-verify.sh
 bash tests/test-doc-check.sh
 bash tests/test-check-deps.sh
+bash tests/test-check-enabled.sh
 ```
 
 ## PR

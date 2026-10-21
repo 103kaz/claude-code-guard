@@ -500,6 +500,14 @@ check $BLOCK 'echo x >> .git/config'
 check $ALLOW 'cat .git/config'
 check $ASK   "echo 'exit 0' > .claude/verify.sh"
 check $ALLOW 'bash .claude/verify.sh'
+# trust-verify.sh is the user's approval of a verify.sh: Claude running it asks (the user answers in the terminal instead)
+check $ASK   'bash /opt/cg/scripts/trust-verify.sh'
+check $ASK   'bash scripts/trust-verify.sh .'
+check $ASK   'echo yes | bash ~/.claude/plugins/cache/x/code-guard/0.1.0/scripts/trust-verify.sh'
+check $ASK   './scripts/trust-verify.sh'
+check $ASK   'cd x && sh scripts/trust-verify.sh'
+check $ALLOW 'cat scripts/trust-verify.sh'
+check $ALLOW 'grep -n trust scripts/trust-verify.sh'
 
 # --- grep / rg の検索パターンは書き込み先ではない (パターンの外の > は書き込み) ---
 check $ALLOW "grep -n '>' project/.claude/settings.json"

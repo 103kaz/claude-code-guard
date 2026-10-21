@@ -28,6 +28,8 @@ claude-code-guard/
 │   ├── guard-mcp.sh        # PreToolUse(mcp__.*)
 │   ├── fmt-terraform.sh    # PostToolUse(Edit|Write): .tf を整形
 │   ├── verify-loop.sh      # UserPromptSubmit と Stop
+│   ├── trust-verify.sh     # 利用者が実行する: verify.sh の内容 (SHA-256) を承認する
+│   ├── check-enabled.sh    # 利用者の settings に登録する SessionStart: プロジェクトの settings が code-guard を外していれば警告する
 │   ├── check-deps.sh       # SessionStart: jq / perl が無いときだけ知らせる (止めない)
 │   ├── doc-check.sh        # PostToolUse(Skill) と PreToolUse(Bash|mcp__.*): PR の前の照合 (doc_check_before_pr)
 │   └── lib/                # 共通の関数 (判定結果の出力、設定の読み込み)
@@ -42,7 +44,8 @@ claude-code-guard/
 │   ├── test-guard.sh
 │   ├── test-verify.sh
 │   ├── test-doc-check.sh
-│   └── test-check-deps.sh
+│   ├── test-check-deps.sh
+│   └── test-check-enabled.sh
 ├── docs/
 │   └── spec.md
 ├── .github/workflows/
@@ -153,10 +156,11 @@ Glob はファイル名を返すだけなので対象にしない。
 | 時間切れ | 600 秒 |
 | 状態の置き場所 | `${CLAUDE_PLUGIN_DATA}/verify/<session_id>.*` |
 | `verify.sh` の編集 | ガードが ask にする (テストを消して通すのを防ぐ) |
+| `verify.sh` の承認 | クローンしたリポジトリの `verify.sh` は他人のコードなので、利用者が承認した内容のときだけ走らせる。承認は `scripts/trust-verify.sh` (利用者がターミナルで実行) が、ファイルと SHA-256 を見せ、標準入力の `yes` で記録する。記録は `${CLAUDE_PLUGIN_DATA}/verify-trust/` の下に、プロジェクトのディレクトリごと (実パスの cksum) に 1 ファイル。内容が変わると外れる。未承認のときは走らせず、承認の手順を `systemMessage` で知らせる (セッションにつき 1 回)。Claude が `trust-verify.sh` を実行しようとすると Bash のガードが ask にする。承認の記録を直接書くのは、`~/.claude/plugins` の規則で block |
 
 雛形は `/code-guard:setup-verify` のスキルで作る。スキルはプロジェクトの言語とビルドの設定 (`package.json`、`pyproject.toml`、`go.mod` など) を見て、速く終わる lint とテストを入れた `.claude/verify.sh` を提案する。書き込む前にユーザーに中身を見せる。
 
-検証ループは Claude に直させるための仕組みで、強制ではない。`verify.sh` を通さずに終える方法は残る。
+検証ループは Claude に直させるための仕組みで、強制ではない。`verify.sh` を通さずに終える方法は残る。承認は、ループが走らせる直前にハッシュを照らすだけで、照らした後からの差し替えは見ない。Claude が自分で打つ `bash .claude/verify.sh` は止めない (承認が止めるのは、ループによる自動実行)。
 
 ## レビューのループ
 
@@ -198,6 +202,8 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 
 `enabledPlugins` は `pluginConfigs` と違い、プロジェクトの `.claude/settings.json` とローカルの `.claude/settings.local.json` からも読まれ、ユーザーの settings より優先される。そのため、リポジトリの settings に `"code-guard@claude-code-guard": false` があると、ガードは外れる。Claude による書き換えは、ファイルのツールのガード (`.claude/settings*` の Edit は ask) と中核のルール (Bash での書き換えは block) で止まる。クローンした時点で入っている設定は止められない。
 
+無効にされたプラグインはフックを一つも動かさないので、プラグイン自身は気づけない。知るための手段として、プラグインの外 (利用者の `~/.claude/settings.json`) に SessionStart のフックとして登録する `scripts/check-enabled.sh` を置く。カレントのプロジェクトの `.claude/settings.json` と `.claude/settings.local.json` を読み、`enabledPlugins` で `code-guard@…` が `false` なら、`systemMessage` (利用者向け) と `additionalContext` (Claude 向け) で警告する。止めない。`jq` が要る。managed settings など、その 2 つ以外の場所での無効化は見ない。登録は利用者が行う (Claude の `~/.claude` への書き込みは止まる)。上書きされないようにするには `enabledPlugins` を managed settings に置く。
+
 ## 配布
 
 リポジトリ自体をマーケットプレイスにする。
@@ -223,6 +229,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | 検証ループ | `tests/test-verify.sh` |
 | PR の前の照合 | `tests/test-doc-check.sh` |
 | 依存の確認 | `tests/test-check-deps.sh` |
+| 無効化の警告 | `tests/test-check-enabled.sh` |
 | マニフェスト | `claude plugin validate --strict` |
 | CI | GitHub Actions。PR では ubuntu、main への push では ubuntu と macOS。macOS は `/bin/bash` (3.2) で流す。public リポジトリなので無料 |
 
@@ -262,7 +269,7 @@ README の先頭近くに書く。
 - マーケットプレイスの名前は `claude plugin validate --strict` を通した。公開時の登録で弾かれるかは未確認。
 - フックの `onFailure: "block"` は 2.1.295 以降の機能で、開発に使った 2.1.293 では実機で確かめていない。古い版ではこのキーが無視され、終了コードの動作になる。
 - Read への deny と、フックの exit 2 で、画面の表示や Claude に届く文面がどう違うか。どちらで止めるかは exit 2 に決めてあり、違いは未確認。
-- リポジトリの settings の `enabledPlugins` でこのプラグインが無効にされている場合の扱い。無効だとこのプラグインのフックは一つも動かないので、プラグイン自身では知らせられない。「保証しないこと」に書くほかに手を打つかを決める。
+- リポジトリの settings の `enabledPlugins` でこのプラグインが無効にされている場合の扱い。無効だとこのプラグインのフックは一つも動かないので、プラグイン自身では知らせられない。「保証しないこと」に書くほか、プラグインの外に置く `scripts/check-enabled.sh` で警告できるようにした (上の「設定」の節)。managed settings など別の場所での無効化は見ない。
 
 ### メッセージの案
 

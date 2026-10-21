@@ -27,7 +27,12 @@ run_hook() {
   RC=$?
   ERR="$(cat "$tmp/hook.err")"
 }
-set_verify() { printf '#!/bin/bash\n%s\n' "$1" >"$repo/.claude/verify.sh"; }
+trust_script="$SCRIPTS/trust-verify.sh"
+# trust_verify [answer]: the user's approval of the current .claude/verify.sh (the script asks on stdin)
+trust_verify() { printf '%s\n' "${1:-yes}" | CLAUDE_PLUGIN_DATA="$tmp/data" bash "$trust_script" "$repo" >"$tmp/trust.out" 2>&1; }
+# set_verify writes the script and approves it; set_verify_untrusted only writes it
+set_verify_untrusted() { printf '#!/bin/bash\n%s\n' "$1" >"$repo/.claude/verify.sh"; }
+set_verify() { set_verify_untrusted "$1"; trust_verify; }
 commit_all() { git -C "$repo" add -A && git -C "$repo" commit -qm "$1"; }
 
 # No .claude/verify.sh: do nothing and say nothing
@@ -194,6 +199,58 @@ run_hook nc1 mark
 echo b >"$repo/s.txt"; git -C "$repo" add -A
 run_hook nc1
 [ "$RC" = 2 ] || ng "did not verify a re-staged change in a repository with no commit (rc=$RC)"
+repo="$git_repo"
+
+# --- Trust: a verify.sh runs only after the user approved its content ---
+# A cloned repository's verify.sh must not run on its own: it is not run, and the user is told how to approve it
+repo="$tmp/untrusted"
+git init -q -b main "$repo"
+git -C "$repo" config user.name t; git -C "$repo" config user.email t@t; git -C "$repo" config commit.gpgsign false
+mkdir -p "$repo/.claude"
+echo init >"$repo/README"
+set_verify_untrusted "touch \"$tmp/ran-untrusted\"; exit 1"
+git -C "$repo" add -A && git -C "$repo" commit -qm init
+run_hook t1 mark; echo a >"$repo/a.txt"
+run_hook t1
+[ "$RC" = 0 ] || ng "an unapproved verify.sh stopped the turn (rc=$RC)"
+[ ! -e "$tmp/ran-untrusted" ] || ng "an unapproved verify.sh was run"
+grep -q 'systemMessage' <<<"$OUT" && grep -q 'trust-verify.sh' <<<"$OUT" || ng "the user was not told how to approve (out=$OUT)"
+# Said once per session, not on every stop
+run_hook t1
+[ -z "$OUT" ] && [ -z "$ERR" ] || ng "the approval notice repeated in the same session"
+[ ! -e "$tmp/ran-untrusted" ] || ng "an unapproved verify.sh was run on the second stop"
+# Answering anything but yes does not approve
+trust_verify no
+run_hook t2 mark; echo b >>"$repo/a.txt"
+run_hook t2
+[ ! -e "$tmp/ran-untrusted" ] || ng "a refused approval still ran verify.sh"
+# After approval it runs
+trust_verify yes
+run_hook t3 mark; echo c >>"$repo/a.txt"
+run_hook t3
+[ "$RC" = 2 ] && [ -e "$tmp/ran-untrusted" ] || ng "an approved verify.sh did not run (rc=$RC)"
+# Changing the content takes the approval away
+rm -f "$tmp/ran-untrusted"
+printf '#!/bin/bash\ntouch "%s"; exit 1\n# changed\n' "$tmp/ran-untrusted" >"$repo/.claude/verify.sh"
+run_hook t4 mark; echo d >>"$repo/a.txt"
+run_hook t4
+[ "$RC" = 0 ] && [ ! -e "$tmp/ran-untrusted" ] || ng "a changed verify.sh ran on the old approval (rc=$RC)"
+grep -q 'trust-verify.sh' <<<"$OUT" || ng "no approval notice after the content changed"
+# The approval belongs to the repository: another repository with the same content is not approved
+repo2="$tmp/untrusted2"
+git init -q -b main "$repo2"; mkdir -p "$repo2/.claude"
+cp "$repo/.claude/verify.sh" "$repo2/.claude/verify.sh"
+trust_verify yes
+rm -f "$tmp/ran-untrusted"
+repo_saved="$repo"; repo="$repo2"
+run_hook t5 mark; echo e >"$repo2/e.txt"
+run_hook t5
+[ ! -e "$tmp/ran-untrusted" ] || ng "an approval for one repository ran another repository's verify.sh"
+repo="$repo_saved"
+# trust-verify.sh without a verify.sh fails
+repo="$tmp/noverify"; mkdir -p "$repo"
+trust_verify yes
+[ $? -ne 0 ] || ng "trust-verify.sh succeeded with no .claude/verify.sh"
 repo="$git_repo"
 
 if [ "$fail" = 0 ]; then echo "all $n verify loop checks passed"; fi

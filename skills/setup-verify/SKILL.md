@@ -16,4 +16,6 @@ Propose a fast `.claude/verify.sh`, show it, and write it only after the user ag
 5. Show the script and which checks were left out, then ask. Write it only after a yes.
 6. Run it once and report the result and the time. If nothing can be verified quickly, say so; do not write a script that always passes.
 
-Editing `.claude/verify.sh` asks for confirmation through code-guard; that is expected.
+7. Tell the user that the verify loop skips a `verify.sh` until they approve it, and give the command to run themselves in a terminal: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/trust-verify.sh"` (it shows the script and asks for `yes`). Do not run it yourself, and do not answer its prompt for the user.
+
+Editing `.claude/verify.sh` asks for confirmation through code-guard; that is expected. Any change to the script takes its approval away, so the user approves again after each edit.

@@ -89,6 +89,19 @@ elif [ -f "$mark_file" ]; then
     || [ "$(file_list_sum)" != "$(cat "$mark_file")" ] || exit 0
 fi
 
+# A verify.sh from a cloned repository is someone else's code: run it only while its content is the one the user approved
+# (scripts/trust-verify.sh). Otherwise skip it and tell the user how to approve, once per session
+# shellcheck source=lib/verify-trust.sh
+. "${BASH_SOURCE[0]%/*}/lib/verify-trust.sh" || exit 0
+if ! verify_trusted "$root" "$verify"; then
+  notice_file="$state_dir/$key.notice"
+  if [ ! -e "$notice_file" ]; then
+    : >"$notice_file" 2>/dev/null
+    system_message "code-guard: .claude/verify.sh was not run because its content has not been approved. Read it, then approve it yourself in a terminal: bash \"$(cd "${BASH_SOURCE[0]%/*}" && pwd)/trust-verify.sh\" \"$root\""
+  fi
+  exit 0
+fi
+
 # Run even when the execute bit is missing. Time out (perl alarm; timeout is missing on macOS) so a hung check cannot block the turn forever
 run_verify() {
   # verify.sh runs in its own process group. On time-out the group gets TERM, then KILL after 2 seconds, so a child that

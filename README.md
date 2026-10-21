@@ -11,7 +11,7 @@ A Claude Code plugin that builds a harness and loops into your project. The harn
 - Grep is stopped only when its `path` is a secret file. A directory search whose results include secret files cannot be stopped.
 - The verify loop makes Claude fix failures. It is not enforcement: a turn can still end without running `verify.sh`.
 - The hook input format and the plugin mechanism can change between Claude Code versions. See [Tested versions](#tested-versions).
-- A repository can switch the plugin off: `enabledPlugins` in the project's `.claude/settings.json` overrides the user's settings. Claude's own edits to those files are stopped (asked or blocked), but a setting that arrived with a cloned repository is not.
+- A repository can switch the plugin off: `enabledPlugins` in the project's `.claude/settings.json` overrides the user's settings. Claude's own edits to those files are stopped (asked or blocked), but a setting that arrived with a cloned repository is not. The plugin cannot detect this itself (a switched-off plugin runs no hooks); see [When a repository switches the plugin off](#when-a-repository-switches-the-plugin-off).
 
 ## Install
 
@@ -71,6 +71,14 @@ When files changed during a turn and the project has `.claude/verify.sh`, the St
 
 "Changed" compares a fingerprint of HEAD, the tracked diff and the untracked files against the one taken when the prompt was submitted, so changes that were already there do not trigger it. Outside git, a file modified, renamed or deleted after the prompt was submitted counts.
 
+A `verify.sh` from a cloned repository is someone else's code, so the loop runs it only while its content is the one you approved. Until then it is skipped and you are told once per session. Read the script, then approve it in a terminal:
+
+```bash
+bash <plugin dir>/scripts/trust-verify.sh [project dir]
+```
+
+It shows the file and its SHA-256, and approves only when you type `yes`. The approval is kept per project directory; changing the file takes it away. Claude running `trust-verify.sh` is asked by the Bash guard, so a Claude that answers `yes` itself still needs your confirmation. Writing the approval file directly falls under the `~/.claude/plugins` rule (blocked).
+
 Create the script with `/code-guard:setup-verify`. It looks at your build files and proposes a fast lint + test script, and writes it only after you agree.
 
 ## Review loop
@@ -105,6 +113,24 @@ Change them in the `/plugin` settings screen. They are read from user and manage
 
 Per-project overrides are not supported.
 
+## When a repository switches the plugin off
+
+`enabledPlugins` in a project's `.claude/settings.json` or `.claude/settings.local.json` overrides your settings, and a plugin that is switched off runs no hooks, so code-guard cannot warn about it from the inside. To be told, register `scripts/check-enabled.sh` as a SessionStart hook in your own settings (outside the plugin). It prints a warning only when a project settings file sets a `code-guard@...` entry to `false`, and never blocks.
+
+Copy `scripts/check-enabled.sh` to `~/.claude/hooks/code-guard-check-enabled.sh`, then add this to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "bash \"$HOME/.claude/hooks/code-guard-check-enabled.sh\"" } ] }
+    ]
+  }
+}
+```
+
+Claude's own edits to `~/.claude` are stopped, so do this yourself. It needs `jq` and does not see a plugin switched off in a place other than those two project files (managed settings, for example). To make the setting impossible to override, put `enabledPlugins` in managed settings.
+
 ## Using it with the sandbox
 
 The sandbox limits writes and network at the OS level; code-guard stops operations by meaning (push to main, `terraform destroy`). They complement each other. Plugins cannot configure the sandbox, so add it to your own settings, for example:
@@ -135,6 +161,7 @@ bash tests/test-guard.sh    # guards, packs, settings (about a minute)
 bash tests/test-verify.sh   # verify loop
 bash tests/test-doc-check.sh  # docs check before a PR
 bash tests/test-check-deps.sh  # dependency check at session start
+bash tests/test-check-enabled.sh  # warning for a project that switches the plugin off
 ```
 
 When you change a guard decision, add cases to `tests/test-guard.sh` first.

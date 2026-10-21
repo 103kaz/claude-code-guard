@@ -275,6 +275,11 @@ if [ -z "$pending_ask" ] \
    && grep -Eq '\.claude/(hooks|verify\.sh)|\.github/workflows' <<<"$cmd_home"; then
   add_ask "changing .claude/hooks / .claude/verify.sh / .github/workflows: confirm the user has OKed this change in chat before approving"
 fi
+# trust-verify.sh is the user's approval of a project's verify.sh (the verify loop runs only an approved one). It asks for "yes" on stdin,
+# so Claude could answer it itself: running it needs the user's confirmation here, and the user may rather run it in a terminal
+if grep -Eq '(^|[;&|(`][[:space:]]*)([^[:space:];&|]*/)?trust-verify\.sh|(^|[;&|([:space:]`])(bash|sh|zsh|dash|source|\.)[[:space:]]+(-[^[:space:]]+[[:space:]]+)*([^;&|]*/)?trust-verify\.sh' <<<"$cmd"; then
+  add_ask "trust-verify.sh approves a project's .claude/verify.sh to run at the end of every turn: confirm the user has read the script and OKed it in chat before approving"
+fi
 # Reading (git config core.hooksPath / --get) is fine. Setting a value (other than .githooks) and --unset are blocked
 # git config keys are case-insensitive (core.hookspath is the same key)
 if grep -Eiq "${P}git([[:space:]]+-[^[:space:]]+)*[[:space:]]+config([^|;&]*)core\.hooksPath" <<<"$cmd_msg" \
