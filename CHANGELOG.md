@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The README, spec and plugin descriptions now present the plugin as a harness plus loops (verify loop, review loop, docs check).
 - `/code-guard:review-loop`: runs verify, review and fix over the branch diff until a lap finds nothing.
 
 ## 0.1.0 (2026-10-21)
