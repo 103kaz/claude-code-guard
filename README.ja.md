@@ -105,7 +105,7 @@ bash <プラグインのディレクトリ>/scripts/trust-verify.sh [プロジ�
 
 | キー | 既定 | 内容 |
 |---|---|---|
-| `protected_branches` | `main`、`master` | push を block するブランチ |
+| `protected_branches` | `main`、`master` | push を block するブランチ (`*` は任意の並びに合う: `release/*`) |
 | `confirm_push` | `true` | 作業ブランチへの push に確認を出す |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | パックの有効・無効 |
 | `doc_check_before_pr` | `false` | `/code-guard:doc-code-consistency` がブランチの先頭を照合するまで、`gh pr create` (と MCP の `create_pull_request`) を block する |

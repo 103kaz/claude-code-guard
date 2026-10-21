@@ -50,13 +50,13 @@ _pb="$(printf '%s' "${CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES:-}" | tr -d '[]"' 
 PROTECTED_LIST=""
 set -f   # no glob expansion of the words below
 for _b in $_pb; do
-  # only plain branch-name characters; anything else is ignored
-  case "$_b" in *[!A-Za-z0-9._/-]*|'') continue ;; esac
+  # only plain branch-name characters and * (any run of them, as in release/*); anything else is ignored
+  case "$_b" in *[!A-Za-z0-9._/*-]*|'') continue ;; esac
   PROTECTED_LIST="${PROTECTED_LIST:+$PROTECTED_LIST, }$_b"
 done
 set +f
 [ -n "$PROTECTED_LIST" ] || PROTECTED_LIST="main, master"
-PROTECTED_RE="$(printf '%s' "$PROTECTED_LIST" | sed -E 's/, /|/g; s/\./\\./g')"
+PROTECTED_RE="$(printf '%s' "$PROTECTED_LIST" | sed -E 's/, /|/g; s/\./\\./g; s/\*/[A-Za-z0-9._\/-]*/g')"
 unset _pb _b
 
 # is_protected_branch <name>

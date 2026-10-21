@@ -6,6 +6,7 @@
 - `scripts/check-enabled.sh`: a SessionStart hook for the user's own settings that warns when a project's settings switch code-guard off (`enabledPlugins`, or `disableAllHooks`). The plugin cannot do this itself.
 - A SessionStart hook names `jq` or `perl` when it is missing (silent otherwise, never blocks), so the problem shows before the guards start blocking.
 - The README, spec and plugin descriptions now present the plugin as a harness plus loops (verify loop, review loop, docs check).
+- `gh api -X Delete` (and other mixed-case methods) is now read as a mutating method. A bare `*`, `*.*` or `.*` is expanded in the current directory and blocked when a secret file name is among the matches (`cat *` next to `prod.tfvars`). `protected_branches` takes `*` (`release/*`). An MCP tool without a SQL word in its name now asks for `GRANT x TO`, `REVOKE x FROM`, `COPY t FROM/TO`, `MERGE t USING`, `CALL f(`, and `DELETE t WHERE`.
 - `/code-guard:review-loop`: runs verify, review and fix over the branch diff until a lap finds nothing.
 
 ## 0.1.0 (2026-10-21)
@@ -20,12 +21,11 @@
 - A `branch` / `ref` nested anywhere in an MCP tool's input counts, so an unrelated nested field named `ref` that holds `main` blocks the call. A read tool whose name has the word `push` (`get_status_push`) is judged as a branch-writing tool.
 - A command longer than 100000 characters is asked without being read.
 - A secret file name built at run time is read only when a command substitution uses `printf`, `rev`, `tr`, `base64 -d`, `xxd -r` or `echo -e` (asked). A name built from a variable (`f=.e; cat ${f}nv`, `f=$(printf .e%snv); cat $f`), by another command, or by ANSI-C quoting (`cat $'\x2eenv'`) passes. Such a substitution asks even where it is not run (inside single quotes) or only cleans up text (`$(git branch --show-current | tr -d '\n')`).
-- A word that is only `*`, `*.*` or `.*` is not matched against secret names (`cat *` in a directory with `prod.tfvars` passes).
+- A word that is only `*`, `*.*` or `.*` is expanded in the current directory of the hook, so a `cd dir && cat *` is not looked at (the directory the command moves to is not read).
 - When a grep or rg is in the command, quoted strings without a slash are not inspected for `*.pem` / `*.key` (`grep -rn foo . ; cat "server.key"` passes).
 - Secret names are matched without case, except `.Key` (a common JSON field). Other spellings of a field path such as `jq '.ITEM.KEY'` are blocked as key files.
 - `cat -- -m "<file>"`: a value after `--` that follows a message flag is treated as message text.
-- `gh api -X Delete` written in mixed case is not recognized as a mutating method.
-- For an MCP tool without `query`, `sql`, `execute`, `exec` or `migration` in its name, SQL is found only by the shapes listed in the spec. Other forms pass (`DELETE users WHERE ...` without `FROM`, `GRANT admin TO bob`, `COPY t FROM ...`, `MERGE t USING ...`, `CALL purge_all()`). Text that reads like one of those shapes asks, so plain messages such as "create type definitions", "we drop index cards" or "drop table soon" ask too, including those sent to a chat or mail tool. This is kept on purpose: narrowing the shape (to a statement that starts a sentence or ends with `;`) would let `run` / `statement` tools pass a statement written without them.
+- For an MCP tool without `query`, `sql`, `execute`, `exec` or `migration` in its name, SQL is found only by the shapes listed in the spec. Other forms pass. Text that reads like one of those shapes asks, so plain messages such as "create type definitions", "we drop index cards" or "drop table soon" ask too, including those sent to a chat or mail tool. This is kept on purpose: narrowing the shape (to a statement that starts a sentence or ends with `;`) would let `run` / `statement` tools pass a statement written without them.
 - A repository can switch the plugin off through `enabledPlugins` in its own settings. The plugin cannot notice (it runs no hooks then); `scripts/check-enabled.sh` registered in the user's settings warns about the two project settings files, not about managed settings or other places.
-- Per-project configuration and a protected-branch glob (`release/*`) are not handled.
+- Per-project configuration is not handled.
 - The approval of a `verify.sh` is a hash checked just before the run; a file changed between the check and the run is not caught. The approval covers `verify.sh` itself, not the files it calls. The ask on `trust-verify.sh` does not see a name built at run time. `bash .claude/verify.sh` typed by Claude is not stopped (the loop's own run is what the approval gates).
