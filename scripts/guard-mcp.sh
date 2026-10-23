@@ -3,7 +3,8 @@
 # MCP tools that delete or publish external resources, or change secrets, need user approval (ask).
 # This keeps operations that guard-bash.sh stops on the CLI (wrangler, gcloud, gh) from slipping through an MCP route.
 #
-# The decision uses the words in the tool name (without the server name; camelCase is split) and the input text (SQL).
+# The decision uses the words in the tool name (without the server name; camelCase is split) and the SQL in the input (all of it
+# for a tool that takes SQL, else the fields named sql, statement, statements or stmt).
 # There is no per-server list. When you change this, add cases to tests/test-guard.sh and run it.
 set -uo pipefail
 
@@ -46,9 +47,9 @@ if grep -Eiq '(^|[_-])(delete|destroy|drop|purge|remove|truncate|wipe|erase|depl
   ask "MCP tool $tool: deletes, publishes, merges or pushes an external resource, or changes a secret. Confirm the user has OKed this in chat before approving"
 fi
 
-# Is the tool one that takes SQL (query, sql, execute, exec, migration)
+# Is the tool one that takes SQL (query, sql, execute, exec, statement, migration)
 sql_tool=0
-grep -Eiq '(^|[_-])(query|sql|execute|exec|migration|migrations|migrate)([_-]|$)' <<<"$name_w" && sql_tool=1
+grep -Eiq '(^|[_-])(query|sql|execute|exec|statement|statements|migration|migrations|migrate)([_-]|$)' <<<"$name_w" && sql_tool=1
 # A tool that only reads (search, list, get ...) is not judged by its input: a search for "DELETE FROM" changes nothing.
 # The input is not read for it either. A name that also has a word that writes (get_or_create, find_and_replace) is not one
 if [ "$sql_tool" = 0 ] && grep -Eiq '^(get|list|search|read|describe|fetch|find|view|show)([_-]|$)' <<<"$name_w" \
@@ -56,31 +57,28 @@ if [ "$sql_tool" = 0 ] && grep -Eiq '^(get|list|search|read|describe|fetch|find|
   exit 0
 fi
 
-# SQL that changes data asks. All string values are joined; /* comments */ and -- comments are dropped, newline, tab and NBSP
+# SQL that changes data asks. For a tool that takes SQL, all string values are joined; for any other tool, only the values
+# under a field named sql, statement, statements or stmt (at any depth) are read, and a tool without such a field is not
+# judged by its input. A field named query or q is not read for those tools: it is often a search phrase or a message.
+# /* comments */ and -- comments are dropped, newline, tab and NBSP
 # are flattened to spaces, so DELETE/**/FROM and DELETE--x<newline>FROM are seen. A keyword may be followed by a quote or a
 # parenthesis (UPDATE"t", INSERT(a))
 # A comment mark inside a string literal is not a comment (SELECT '--'; DELETE ..., SELECT '/*'; DELETE ...), so the text
 # is also read with the comments kept. # is a MySQL comment
 # A quoted identifier of one word ("update", `delete`, [create]) is a name, not a keyword: its text becomes x. An identifier
 # with spaces or other marks is kept as it is (it can be quotes inside a string around a statement)
-sql_text="$(jq -r '[.. | strings] | join(" ")' <<<"$(jq -c '.tool_input // {}' <<<"$input")" 2>/dev/null \
-  | perl -0pe 's/\xc2\xa0/ /g; my $k = $_; s{/\*.*?\*/}{ }gs; s/--[^\n]*/ /g; s/#[^\n]*/ /g; $_ .= ";\n" . $k;
+if [ "$sql_tool" = 1 ]; then
+  sql_src='[.. | strings] | join(" ")'
+else
+  sql_src='[.. | objects | to_entries[] | select(.key | test("^(sql|statements?|stmt)$"; "i")) | .value | .. | strings] | join(" ")'
+fi
+sql_raw="$(jq -c '.tool_input // {}' <<<"$input" 2>/dev/null | jq -r "$sql_src" 2>/dev/null)"
+[ -n "${sql_raw//[[:space:]]/}" ] || exit 0
+sql_text="$(printf '%s' "$sql_raw" | perl -0pe 's/\xc2\xa0/ /g; my $k = $_; s{/\*.*?\*/}{ }gs; s/--[^\n]*/ /g; s/#[^\n]*/ /g; $_ .= ";\n" . $k;
       s/(["`])([^"`]*)\1/ my ($q, $s) = ($1, $2); $s =~ m{^[\w\$]*$} ? "${q}x$q" : "$q$s$q" /ge; s/\[[\w\$]*\]/[x]/g' | tr '\n\t\r' '   ')"
-# Tools that take SQL: any data-changing keyword asks. replace and copy count only at the start of a statement
+# Any data-changing keyword in the text read asks. replace and copy count only at the start of a statement
 # (replace(name, 'a', 'b') is a function)
-if [ "$sql_tool" = 1 ] \
-   && grep -Eiq '(^|[^[:alnum:]_])(drop|delete|truncate|alter|update|insert|create|merge|grant|revoke|rename|upsert|call)([[:space:]"`(\[]|$)|(^|;)[[:space:]]*(replace|copy)([[:space:]"`(\[]|$)' <<<"$sql_text"; then
+if grep -Eiq '(^|[^[:alnum:]_])(drop|delete|truncate|alter|update|insert|create|merge|grant|revoke|rename|upsert|call)([[:space:]"`(\[]|$)|(^|;)[[:space:]]*(replace|copy)([[:space:]"`(\[]|$)' <<<"$sql_text"; then
   ask "MCP tool $tool: SQL that changes the database. Confirm the user has OKed this in chat before approving"
 fi
-# Any other tool (run, statement, ...) asks when the input has the shape of a data-changing statement
-# (DELETE FROM, UPDATE t SET, INSERT INTO, DROP / ALTER / CREATE / TRUNCATE TABLE ...). UPDATE with an alias or a JOIN,
-# a multi-table DELETE, TRUNCATE of several tables and MySQL's INSERT without INTO are included
-Q='[[:space:]"`(\[]*'
-NAME='[^[:space:];]+'
-T='[[:alnum:]_"`.]+'
-OBJ='(table|database|schema|view|index|unique|sequence|function|procedure|trigger|type|role|user|extension|policy|materialized|temp|temporary|column|constraint|if)'
-if grep -Eiq "(^|[^[:alnum:]_])(delete${Q}from|insert${Q}(into|or|ignore)|(replace|merge)${Q}into|update${Q}${NAME}([[:space:]]+(as[[:space:]]+)?[[:alnum:]_]+)?${Q}set|update[[:space:]][^;]*[[:space:]]join[[:space:]][^;]*[[:space:]]set|delete${Q}([[:alnum:]_.]+[[:space:]]*,[[:space:]]*)*[[:alnum:]_.]+[[:space:]]+from|insert${Q}${NAME}${Q}(values|select|set)|rename${Q}(table|user)|(drop|alter|truncate)${Q}${OBJ}|create${Q}(or[[:space:]]+replace[[:space:]]+)?${OBJ}|truncate[[:space:]]+(only[[:space:]]+)?${T}([[:space:]]*,[[:space:]]*${T})*[[:space:]]*(;|$)|(grant|revoke)[[:space:]]+${NAME}[[:space:]]+(to|from)|copy[[:space:]]*[(][^;]*[)][[:space:]]*to|copy[[:space:]]+${NAME}([[:space:]]*[(][^)]*[)])?[[:space:]]+(from|to)|merge[[:space:]]+${NAME}([[:space:]]+(as[[:space:]]+)?[[:alnum:]_]+)?[[:space:]]+using|call[[:space:]]+[[:alnum:]_.]+[[:space:]]*[(].*|delete[[:space:]]+${NAME}[[:space:]]+where|(grant|revoke)[[:space:]]+(all|select|insert|update|delete|usage|execute|references|trigger|create|connect)([[:space:],]|$))([^[:alnum:]_]|$)" <<<"$sql_text"; then
-  ask "MCP tool $tool: the input looks like SQL that changes the database. Confirm the user has OKed this in chat before approving"
-fi
-
 exit 0
