@@ -16,10 +16,6 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/verify-loop.sh\" mark"
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/doc-check.sh\" record-prompt"
           }
         ]
       }
@@ -54,28 +50,9 @@
             "onFailure": "block"
           }
         ]
-      },
-      {
-        "matcher": "Bash|mcp__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/doc-check.sh\" gate",
-            "onFailure": "block"
-          }
-        ]
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/doc-check.sh\" record"
-          }
-        ]
-      },
       {
         "matcher": "Edit|Write",
         "hooks": [

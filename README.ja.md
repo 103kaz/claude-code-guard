@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-Claude Code にハーネスとループを組み込むプラグインです。ハーネスは、危ない操作をフックで止める仕組みです。ループは、Claude に自分の仕事を確かめさせる仕組みで、応答を終える前にプロジェクト自身の検証を走らせる検証ループ、ブランチの差分をレビューして直すレビューのループ、文書と実装を照らす文書の照合があります。
+Claude Code にハーネスを組み込むプラグインです。ハーネスは、危ない操作をフックで止める仕組みです。検証ループは、応答を終える前にプロジェクト自身の検証を走らせ、その `verify.sh` は `/code-guard:setup-verify` で作れます。レビューのループと文書の照合は、0.3.0 で削除しました。
 
 ## 保証しないこと
 
@@ -96,22 +96,12 @@ exec "${CLAUDE_PROJECT_DIR:-.}/scripts/verify.sh"
 
 `.githooks/pre-push` や CI は `scripts/verify.sh` を直接呼びます。承認の対象は `.claude/verify.sh` の中身だけで、そこから呼ぶファイルは含まれません。入口を承認した後で `scripts/verify.sh` が変わると (他人のコミットを `git pull` したときなど)、あらためて確認されずに走ります。この形は、中身を信頼できるリポジトリだけで使います。クローンしたリポジトリでは、検査を `.claude/verify.sh` に直接書きます。
 
-## レビューのループ
-
-`/code-guard:review-loop` は、ブランチの差分に対して、検証 → レビュー → 修正を 1 周として、指摘が出なくなるまで繰り返します。`.claude/verify.sh` を走らせ、差分を `code-review` のスキルでレビューし (スキルが無ければ自分で読みます)、指摘を直して検証に戻ります。`.claude/verify.sh` が無いときは検証を省き、その旨を報告します。差分が文書だけなら、代わりに `/code-guard:doc-code-consistency` で確かめます。3 周続けて指摘が出るときは、残りを報告して止めます。push と PR の作成はしません。
-
-## 文書の照合
-
-`/code-guard:doc-code-consistency` は、文書 (README、`docs/`、`CLAUDE.md`、`CHANGELOG`、コメント) が実装と合っているかを確かめ、矛盾・陳腐化・記載漏れを file:line の証拠付きで報告します。ふだんは読むだけで、ファイルを直すのは、指摘を直すよう頼んだときだけです。PR の前にブランチの差分に対して流すか、確かめたい文書や機能を指定します。
-
-`doc_check_before_pr` を有効にすると、スキルを始めた時点のコミットを記録します (Claude が実行したときも、あなたがスラッシュコマンドを直接打ったときも) (数えるのは同梱のこのスキルだけで、同じ名前の個人のスキルは数えません)。PR にするブランチの先頭がそのコミットでなければ (照合がまだ無い、またはその後にコミットが増えた)、PR の作成を block します。記録は照合を始めた時点で、結果によらず残るので、強制ではなく思い出させる仕組みです。
-
 ## トークンの消費
 
 コンテキストを食わないように作っています。
 
 - ガードと、回の始めを記録するフックは、通ったときは何も出力しません。block と ask のときだけ数行が足されます。
-- セッションに常に載るのは、3 つのスキル (`/code-guard:setup-verify`、`/code-guard:doc-code-consistency`、`/code-guard:review-loop`) の 1 行の説明だけです。手順の本文は実行したときだけ読み込まれます。setup-verify はビルドの設定を最小限だけ読むよう書いてあります。doc-code-consistency は指定した範囲の分だけ読むので、リポジトリ全体ではなく、ブランチの差分や文書を指定してください。review-loop はブランチの差分だけを読みます。
+- セッションに常に載るのは、スキル `/code-guard:setup-verify` の 1 行の説明だけです。手順の本文は実行したときだけ読み込まれ、ビルドの設定は最小限だけ読むよう書いてあります。
 - 失敗した `verify.sh` が返すのは、80 行かつ 6000 バイトまでです。`verify.sh` は成功時に静かで、速く終わるようにしてください (`--quiet` などが効きます)。
 
 ## 設定
@@ -123,7 +113,6 @@ exec "${CLAUDE_PROJECT_DIR:-.}/scripts/verify.sh"
 | `protected_branches` | `main`、`master` | push を block するブランチ (`*` は任意の並びに合う: `release/*`) |
 | `confirm_push` | `true` | 作業ブランチへの push に確認を出す |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | パックの有効・無効 |
-| `doc_check_before_pr` | `false` | `/code-guard:doc-code-consistency` がブランチの先頭を照合するまで、`gh pr create` (と MCP の `create_pull_request`) を block する |
 | `verify_missing_notice` | `true` | `.claude/verify.sh` が無いままファイルが変わったとき、セッションにつき 1 回知らせる |
 | `verify_max_retry` | `3` | 検証ループの 1 回あたりのやり直しの回数 (1〜10) |
 
@@ -177,7 +166,6 @@ Claude Code 2.1.293 で開発しています。フックには `onFailure: "bloc
 ```bash
 bash tests/test-guard.sh    # ガード、パック、設定 (チェックは並列に走る。GUARD_TEST_JOBS で数を変えられる。最大 8)
 bash tests/test-verify.sh   # 検証ループ
-bash tests/test-doc-check.sh  # PR の前の照合
 bash tests/test-check-deps.sh  # セッション開始時の依存の確認
 bash tests/test-check-enabled.sh  # プロジェクトがプラグインを外すときの警告
 ```

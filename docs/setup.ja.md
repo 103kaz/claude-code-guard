@@ -45,7 +45,7 @@ claude plugin install code-guard@claude-code-guard
 
 ## 動いていることを確かめる
 
-- 新しいセッションで `/` を打ちます。`/code-guard:doc-code-consistency`、`/code-guard:review-loop`、`/code-guard:setup-verify` が出れば入っています。
+- 新しいセッションで `/` を打ちます。`/code-guard:setup-verify` が出れば入っています。
 - `/plugin` の **Installed** タブで、`code-guard @ claude-code-guard` の `Version: 0.2.1` (以降) と `Status: Enabled` を見ます。
 - シェルで `claude plugin list` を実行すると、同じ情報が出ます。
 

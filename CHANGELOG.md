@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- **Breaking:** `/code-guard:review-loop`, `/code-guard:doc-code-consistency` and the `doc_check_before_pr` setting are removed, together with the three docs-check hooks (`doc-check.sh`). code-guard keeps the guards, the verify loop and `/code-guard:setup-verify`.
+
 ## 0.2.2 (2026-10-22)
 
 - The Bash guard no longer blocks a command that only reads a protected path. A protected path (`~/.claude` hooks / settings / plugins, `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks`) is now judged by the write target only: the word after a redirect `>`, the destination of `cp` / `install` / `rsync`, and any argument of the other write commands. `cp ~/.claude/settings.json .`, a redirect to another file in the same command, and `awk '$1 > 3' ~/.claude/hooks/a.sh` pass. When the destination cannot be read for sure (quotes, `\`, `$`, a trailing `+`, `-t`, an option after the first operand) or the command is `ln`, all the arguments are judged as before.
