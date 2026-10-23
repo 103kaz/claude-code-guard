@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New hook `guard-chain.sh`: with the sandbox on, a command chained (`&&`, `||`, `;`, `|`, newline) to a command in `sandbox.excludedCommands` is blocked with a message to run each command in its own call. Such a chain runs inside the sandbox and fails. It reads `sandbox.enabled` and `excludedCommands` from the user and project settings, and passes when the sandbox is off or the settings cannot be read. Limits: it does not look inside `$(...)` or `bash -c`.
+
 ## 0.3.0
 
 - **Breaking:** `/code-guard:review-loop`, `/code-guard:doc-code-consistency` and the `doc_check_before_pr` setting are removed, together with the three docs-check hooks (`doc-check.sh`). code-guard keeps the guards, the verify loop and `/code-guard:setup-verify`.

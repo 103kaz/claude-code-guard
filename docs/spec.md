@@ -26,6 +26,7 @@ claude-code-guard/
 │   ├── guard-bash.sh       # PreToolUse(Bash)
 │   ├── guard-file.sh       # PreToolUse(Read|Edit|Write|MultiEdit|NotebookEdit|Grep)
 │   ├── guard-mcp.sh        # PreToolUse(mcp__.*)
+│   ├── guard-chain.sh      # PreToolUse(Bash): sandbox の除外コマンドに連結したコマンドを止める
 │   ├── fmt-terraform.sh    # PostToolUse(Edit|Write): .tf を整形
 │   ├── verify-loop.sh      # UserPromptSubmit と Stop
 │   ├── trust-verify.sh     # 利用者が実行する: verify.sh の内容 (SHA-256) を承認する
@@ -39,7 +40,8 @@ claude-code-guard/
 │   ├── test-guard.sh
 │   ├── test-verify.sh
 │   ├── test-check-deps.sh
-│   └── test-check-enabled.sh
+│   ├── test-check-enabled.sh
+│   └── test-chain.sh
 ├── docs/
 │   └── spec.md
 ├── .github/workflows/
@@ -114,6 +116,20 @@ jq が無いとフックの入力を読めない。そのときは、そのフ�
 Grep は、対象の `path` が機密値のファイルのときだけ止める。ディレクトリを検索して結果に機密値のファイルが混ざる場合は止められない。この限界は README に書く。
 
 Glob はファイル名を返すだけなので対象にしない。
+
+### sandbox の除外コマンドへの連結のガード
+
+`sandbox.excludedCommands` に載るコマンドは、コマンド全体がそれ 1 つのときだけ sandbox の外で動く。`&&`、`||`、`;`、`|`、改行でつなぐと sandbox の中で動き、`.git` への書き込みや `gh` の呼び出しが失敗する。PreToolUse(Bash) のフック `guard-chain.sh` が、失敗する前に block する (exit 2。理由は、連結せず 1 コマンドずつ別の呼び出しにするよう返す)。
+
+| 項目 | 仕様 |
+|---|---|
+| 読む設定 | `~/.claude/settings.json`、プロジェクトの `.claude/settings.json` と `.claude/settings.local.json`。`sandbox.enabled` は後のファイルが優先、`excludedCommands` は全部を合わせる |
+| 区切り | `&&`、`||`、`;`、`|`、改行。引用符の中、`2>&1` `&>file` などのリダイレクト、heredoc の本文は数えない |
+| 一致 | コマンドの先頭からの照合。パターンの `*` は任意の並び。末尾の空白と `*` (`git push *`) は引数のないコマンドにも一致する |
+| 何もしない | sandbox が無効、パターンが無い、設定や入力が読めない、jq か perl が無い。止める側へ倒さない (使いやすさの補助で、セキュリティのガードではない) |
+| 設定 | 外す設定は無い |
+
+限界: 引用符・リダイレクト・heredoc だけを読み、`$(...)` の中や `bash -c "..."` の中の連結は見ない。除外の照合はハーネスの実装に合わせた推測で、パターンの解釈が違えば食い違う。
 
 ### MCP のガード
 
@@ -206,6 +222,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | 検証ループ | `tests/test-verify.sh` |
 | 依存の確認 | `tests/test-check-deps.sh` |
 | 無効化の警告 | `tests/test-check-enabled.sh` |
+| 連結の検知 | `tests/test-chain.sh` |
 | マニフェスト | `claude plugin validate --strict` |
 | CI | GitHub Actions。PR では ubuntu、main への push では ubuntu と macOS。macOS は `/bin/bash` (3.2) で流す。public リポジトリなので無料 |
 
