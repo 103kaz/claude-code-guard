@@ -16,9 +16,10 @@ bash tests/test-guard.sh
 bash tests/test-verify.sh
 bash tests/test-check-deps.sh
 bash tests/test-check-enabled.sh
+bash tests/test-chain.sh
 ```
 
 ## PR
 - 変更はブランチを切って PR にする。main へ直接 push しない (空のリモートへの初回 push だけ例外)。
 - タイトルと本文は日本語、`feat:` `fix:` などのプレフィックスを付ける。
-- PR を作る前に、doc-code-consistency スキルで、ブランチの差分の文書が実装と合っているかを確かめる。食い違いを直したら確かめ直す。
+- PR を作る前に、ブランチの差分の変更行に含まれる文書の主張を、実装と 1 つずつ照らして確かめる。食い違いを直したら確かめ直す。専用のスキルは同梱していないので、手元にあるスキルか手作業で行う。

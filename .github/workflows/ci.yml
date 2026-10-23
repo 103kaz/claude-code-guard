@@ -37,3 +37,5 @@ jobs:
         run: bash tests/test-check-deps.sh
       - name: Enabled-plugin warning tests
         run: bash tests/test-check-enabled.sh
+      - name: Chained-command guard tests
+        run: bash tests/test-chain.sh

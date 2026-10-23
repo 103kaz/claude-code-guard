@@ -50,6 +50,15 @@
             "onFailure": "block"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guard-chain.sh\""
+          }
+        ]
       }
     ],
     "PostToolUse": [

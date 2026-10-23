@@ -58,6 +58,10 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 ツール名に `delete`、`destroy`、`drop`、`purge`、`remove`、`truncate`、`wipe`、`erase`、`deploy`、`publish`、`unpublish`、`rollback`、`secret` の語があるか、`merge_pull_request`、`merge_branch`、`push_files`、`push_branch`、`force_push`、`create_or_update_file`、`update_file`、`create_commit`、`update_ref` なら ask です。ブランチに書くもの (`push_files`、`push_branch`、`force_push`、`create_or_update_file`、`update_file`、`create_commit`、`update_ref`、ブランチを指定した `delete_file`、`create_file`、`write_file`、`edit_file`、`commit_files`) は、引数の `branch` か `ref` (入力の入れ子の中も読みます) が守るブランチなら block です。名前に `push` の語があるツール (`git_push`、`push`) も同じ扱いで (`refspec` は行き先を読みます)、`branch`、`ref`、`refspec` の引数があるか、名前の最後の語が `push` (`git_push` は引数なしで今のブランチを push する) なら ask です。`query`、`sql`、`execute`、`exec`、`migration`、`migrations`、`migrate` のツールは、入力に変更系の語 (`DROP`、`DELETE`、`UPDATE`、`INSERT`、`MERGE`、`GRANT`、`REVOKE`、`COPY` など。コメントは外して読みます) があるとき ask です。ほかのツールも、入力が変更系の文の形 (`DELETE FROM`、`UPDATE t SET`、`INSERT INTO`、`DROP TABLE`、`CREATE INDEX` など) なら ask です。そう読める文章のメッセージも ask になります。名前が `get`、`list`、`search`、`read`、`describe`、`fetch`、`find`、`view`、`show` で始まるツールは、入力を見ません。ただし名前に書く語 (`or`、`and`、`then`、`create`、`update`、`insert`、`upsert`、`set`、`put`、`write`、`add`、`apply`、`replace`、`save`、`edit`、`modify`、`send`) が混じるもの (`get_or_create`、`find_and_replace`) は見ます。`jq` か `perl` が無いときは、MCP のツールをすべて止めます。
 
+### サンドボックスの除外コマンドへの連結 (`guard-chain.sh`)
+
+サンドボックスが有効なとき、`sandbox.excludedCommands` に載るコマンドがサンドボックスの外で動くのは、コマンド全体がそれ 1 つのときだけです。`&&`、`||`、`;`、`|`、改行でつなぐとサンドボックスの中で動き、失敗します (`.git` への git の書き込み、`gh` の呼び出し)。このガードは `~/.claude/settings.json`、`.claude/settings.json`、`.claude/settings.local.json` から `sandbox.enabled` と `sandbox.excludedCommands` を読み、そのような連結を block して、1 コマンドずつ別の呼び出しにするよう返します。引用符の中、`2>&1` などのリダイレクト、heredoc の本文は区切りに数えません。パターンは 1 つのセグメント全体に照合し、末尾の空白とアスタリスク (`git push *`) や `:*` は、引数のないコマンドにも一致します。`git` のように 1 語だけのパターンは、その語だけのコマンドに一致します。最後まで読めないコマンド (閉じていない引用符) は通します。見落とす形は、`$(...)` や `bash -c "..."` の中の連結、環境変数の接頭辞 (`FOO=1 git push && ls`)、サブシェル、`if ...; then ...; fi` です。サンドボックスが無効なとき、パターンが無いとき、設定を読めないときは何もしません。使いやすさのための補助で、セキュリティのガードではなく、外す設定もありません。
+
 ### パック
 
 既定ではすべて有効です。方針が自分の運用に合わないときに外します。パックを外しても、機密値の読み出しは中核で止まります。
@@ -168,6 +172,7 @@ bash tests/test-guard.sh    # ガード、パック、設定 (チェックは並
 bash tests/test-verify.sh   # 検証ループ
 bash tests/test-check-deps.sh  # セッション開始時の依存の確認
 bash tests/test-check-enabled.sh  # プロジェクトがプラグインを外すときの警告
+bash tests/test-chain.sh  # サンドボックスの除外コマンドへの連結
 ```
 
 ガードの判定を変えるときは、先に `tests/test-guard.sh` にケースを足します。

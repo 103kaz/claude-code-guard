@@ -58,6 +58,10 @@ Plugins cannot ship permission rules, so these live in a hook.
 
 A tool whose name contains `delete`, `destroy`, `drop`, `purge`, `remove`, `truncate`, `wipe`, `erase`, `deploy`, `publish`, `unpublish`, `rollback` or `secret` asks, and so do `merge_pull_request`, `merge_branch`, `push_files`, `push_branch`, `force_push`, `create_or_update_file`, `update_file`, `create_commit` and `update_ref`. Those that write to a branch (`push_files`, `push_branch`, `force_push`, `create_or_update_file`, `update_file`, `create_commit`, `update_ref`, and `delete_file`, `create_file`, `write_file`, `edit_file`, `commit_files` when given a branch) are blocked when their `branch` or `ref` argument (at any depth of the input) is a protected branch. A tool whose name has the word `push` (`git_push`, `push`) is treated the same way (a `refspec` is read by its destination) and asks when it is given a `branch`, `ref` or `refspec`, or when `push` is the last word of its name (`git_push` with no argument pushes the current branch). Tools named `query`, `sql`, `execute`, `exec`, `migration`, `migrations` or `migrate` ask when the input contains a data-changing keyword (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `MERGE`, `GRANT`, `REVOKE`, `COPY` and similar; comments are removed first). Any other tool asks when its input has the shape of a data-changing statement (`DELETE FROM`, `UPDATE t SET`, `INSERT INTO`, `DROP TABLE`, `CREATE INDEX` and similar), so a message that reads like one asks too. Tools whose name starts with `get`, `list`, `search`, `read`, `describe`, `fetch`, `find`, `view` or `show` are not judged by their input unless the name also has a word that writes (`get_or_create`, `find_and_replace`: `or`, `and`, `then`, `create`, `update`, `insert`, `upsert`, `set`, `put`, `write`, `add`, `apply`, `replace`, `save`, `edit`, `modify`, `send`). Without `jq` or `perl` the MCP guard blocks every MCP call.
 
+### Commands chained to a sandbox-excluded command (`guard-chain.sh`)
+
+With the sandbox on, a command listed in `sandbox.excludedCommands` runs outside the sandbox only as the whole command. Chained with `&&`, `||`, `;`, `|` or a newline it runs inside the sandbox and fails (a git write under `.git`, a `gh` call). The guard reads `sandbox.enabled` and `sandbox.excludedCommands` from `~/.claude/settings.json`, `.claude/settings.json` and `.claude/settings.local.json`, and blocks such a chain with a message to run each command in its own call. Quoted text, redirects such as `2>&1` and heredoc bodies are not separators. A pattern matches a whole segment; a trailing space-star (`git push *`) or `:*` also matches the bare command, and a one-word pattern (`git`) matches only the bare command. A command that cannot be read to the end (an unterminated quote) passes. Not seen: a chain inside `$(...)` or `bash -c "..."`, an environment prefix (`FOO=1 git push && ls`), a subshell, `if ...; then ...; fi`. It does nothing when the sandbox is off, no pattern is set, or the settings cannot be read. It is a usability aid, not a security guard, and has no setting to turn it off.
+
 ### Packs
 
 On by default. Turn one off when its policy does not fit how you work. Secret reads stay in the core even when a pack is off.
@@ -168,6 +172,7 @@ bash tests/test-guard.sh    # guards, packs, settings (checks run in parallel; G
 bash tests/test-verify.sh   # verify loop
 bash tests/test-check-deps.sh  # dependency check at session start
 bash tests/test-check-enabled.sh  # warning for a project that switches the plugin off
+bash tests/test-chain.sh  # command chained to a sandbox-excluded command
 ```
 
 When you change a guard decision, add cases to `tests/test-guard.sh` first.
