@@ -61,6 +61,26 @@ check 0 $'git commit -F - <<EOF\nmsg; git push\nEOF'
 check 0 'git commit -m a \
   --no-verify-not-a-flag'
 
+# Shapes that look like separators but are not: comments, ANSI-C quotes, command substitutions, clobber, arithmetic
+check 0 'git push # a && b'
+check 0 "git commit -m \$'it\\'s a && b'"
+check 0 'git commit -m "$(echo "a && b")"'
+check 0 $'git commit -m "$(cat <<\'EOF\'\nsay 5" hi\nEOF\n)"'
+check 0 'git commit -m $(date; echo x)'
+check 0 'git commit -m `date; echo x`'
+check 0 'git add x >| out'
+check 0 'git add $((1 + 2)) y'
+# A chain after a command substitution is still found
+check 2 'git commit -m "$(date)" && git push'
+check 2 'git add $((1<<x)) y
+git commit -m x'
+
+# Pattern forms: a bare command and the "prefix:*" form
+settings '{"sandbox":{"enabled":true,"excludedCommands":["git push:*","git"]}}'
+check 2 'git push origin x && ls'
+check 0 'git status && ls'   # a bare "git" pattern matches only the bare command
+settings "$ON"
+
 # Not excluded by any pattern: chained is fine
 check 0 'git status && git diff'
 check 0 'git log | head -3'
@@ -72,6 +92,12 @@ settings '{"sandbox":{"enabled":true}}'
 check 0 'git add -A && git commit -m x'
 settings '{}'
 check 0 'git add -A && git commit -m x'
+
+# A later settings file can switch the sandbox off again (false is a value, not "unset")
+settings "$ON" '{"sandbox":{"enabled":false}}'
+check 0 'git add -A && git commit -m x'
+settings '{"sandbox":{"enabled":false,"excludedCommands":["git add *"]}}' '{"sandbox":{"enabled":true}}'
+check 2 'git add -A && ls'
 
 # Project settings are read too
 settings '{"sandbox":{"enabled":true}}' '{"sandbox":{"excludedCommands":["terraform plan *"]}}'

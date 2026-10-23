@@ -24,8 +24,9 @@ for f in "$HOME/.claude/settings.json" "$proj/.claude/settings.json" "$proj/.cla
 done
 [ "${#files[@]}" -gt 0 ] || exit 0
 
-# Later files win for "enabled"; the excluded commands of all files are joined
-cfg="$(jq -s -c '{enabled: ([.[].sandbox.enabled // empty] | last // false), patterns: ([.[].sandbox.excludedCommands // []] | add // [] | unique)}' "${files[@]}" 2>/dev/null)" || exit 0
+# Later files win for "enabled" (false is a value, so unset is filtered with select, not //); the excluded commands of
+# all files are joined
+cfg="$(jq -s -c '{enabled: ([.[].sandbox.enabled | select(. != null)] | last // false), patterns: ([.[].sandbox.excludedCommands // []] | add // [] | unique)}' "${files[@]}" 2>/dev/null)" || exit 0
 [ "$(jq -r '.enabled' <<<"$cfg" 2>/dev/null)" = true ] || exit 0
 patterns="$(jq -r '.patterns[]' <<<"$cfg" 2>/dev/null)" || exit 0
 [ -n "$patterns" ] || exit 0
