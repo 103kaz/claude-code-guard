@@ -115,7 +115,7 @@ Change them in the `/plugin` settings screen. They are read from user and manage
 | Key | Default | Meaning |
 |---|---|---|
 | `protected_branches` | `main`, `master` | branches push is blocked for (`*` matches any run of branch-name characters: `release/*`) |
-| `confirm_push` | `true` | ask before pushing a work branch |
+| `confirm_push` | `false` | ask before pushing a work branch |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | enable the pack |
 | `verify_missing_notice` | `true` | tell once per session when files changed and `.claude/verify.sh` is missing |
 | `verify_max_retry` | `3` | verify loop retries per turn (1-10) |

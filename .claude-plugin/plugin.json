@@ -22,7 +22,7 @@
       "type": "boolean",
       "title": "Confirm pushes",
       "description": "Ask for confirmation before pushing a work branch",
-      "default": true
+      "default": false
     },
     "pack_github": {
       "type": "boolean",

@@ -150,7 +150,7 @@ Glob はファイル名を返すだけなので対象にしない。
 
 ### push の確認
 
-作業ブランチへの `git push` (force 無し) に確認を出すかは、`userConfig` の `confirm_push` で選べる (既定は有効)。守るブランチへの push の block と force push の ask は、この設定によらない。push 先が読めない形 (引数のブレース展開や `$@` / `$*`、`xargs`、`parallel`、`find -exec` から呼ぶ `git push`。コマンド名は大文字小文字を区別しない) も、この設定によらず ask。
+作業ブランチへの `git push` (force 無し) に確認を出すかは、`userConfig` の `confirm_push` で選べる (既定は無効)。守るブランチへの push の block と force push の ask は、この設定によらない。push 先が読めない形 (引数のブレース展開や `$@` / `$*`、`xargs`、`parallel`、`find -exec` から呼ぶ `git push`。コマンド名は大文字小文字を区別しない) も、この設定によらず ask。
 
 ## 検証ループ
 
@@ -177,7 +177,7 @@ Glob はファイル名を返すだけなので対象にしない。
 | キー | 型 | 既定 | 内容 |
 |---|---|---|---|
 | `protected_branches` | `string` (`multiple: true`) | `["main", "master"]` | push を block するブランチ。`*` はブランチ名に使う文字の任意の並びに合う (`release/*`) |
-| `confirm_push` | 真偽値 | `true` | 作業ブランチへの push に確認を出す |
+| `confirm_push` | 真偽値 | `false` | 作業ブランチへの push に確認を出す |
 | `pack_github` | 真偽値 | `true` | github パック |
 | `pack_terraform` | 真偽値 | `true` | terraform パック |
 | `pack_gcp` | 真偽値 | `true` | gcp パック |

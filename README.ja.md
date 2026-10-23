@@ -115,7 +115,7 @@ exec "${CLAUDE_PROJECT_DIR:-.}/scripts/verify.sh"
 | キー | 既定 | 内容 |
 |---|---|---|
 | `protected_branches` | `main`、`master` | push を block するブランチ (`*` は任意の並びに合う: `release/*`) |
-| `confirm_push` | `true` | 作業ブランチへの push に確認を出す |
+| `confirm_push` | `false` | 作業ブランチへの push に確認を出す |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | パックの有効・無効 |
 | `verify_missing_notice` | `true` | `.claude/verify.sh` が無いままファイルが変わったとき、セッションにつき 1 回知らせる |
 | `verify_max_retry` | `3` | 検証ループの 1 回あたりのやり直しの回数 (1〜10) |
