@@ -1,11 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 (2026-10-23)
 
 - `confirm_push` now defaults to `false`: a push to a work branch no longer asks. Pushes to protected branches are still blocked, and a force push or a push whose target cannot be read still asks. Set `confirm_push` to `true` in the plugin settings to ask on every push as before.
 - New hook `guard-chain.sh`: with the sandbox on, a command chained (`&&`, `||`, `;`, `|`, newline) to a command in `sandbox.excludedCommands` is blocked with a message to run each command in its own call. Such a chain runs inside the sandbox and fails. It reads `sandbox.enabled` and `excludedCommands` from the user and project settings, and passes when the sandbox is off or the settings cannot be read. Limits: it does not see a chain inside `$(...)` or `bash -c`, after an environment prefix, in a subshell or in `if ...; then ...; fi`; a command it cannot read to the end passes.
 
-## 0.3.0
+## 0.3.0 (2026-10-23)
 
 - **Breaking:** `/code-guard:review-loop`, `/code-guard:doc-code-consistency` and the `doc_check_before_pr` setting are removed, together with the three docs-check hooks (`doc-check.sh`). code-guard keeps the guards, the verify loop and `/code-guard:setup-verify`.
 
