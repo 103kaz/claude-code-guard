@@ -45,7 +45,7 @@ To enable, disable or uninstall the plugin later, use **Manage plugins** in the 
 
 ## Check that it works
 
-- In a new session, type `/`. `/code-guard:doc-code-consistency`, `/code-guard:review-loop` and `/code-guard:setup-verify` should be listed.
+- In a new session, type `/`. `/code-guard:setup-verify` should be listed.
 - In `/plugin`, open the **Installed** tab. `code-guard @ claude-code-guard` should show `Version: 0.2.1` (or later) and `Status: Enabled`.
 - In your shell, `claude plugin list` prints the same information.
 

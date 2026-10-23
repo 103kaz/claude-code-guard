@@ -2,7 +2,7 @@
 
 [日本語](README.ja.md)
 
-A Claude Code plugin that builds a harness and loops into your project. The harness is hooks that stop dangerous operations. The loops make Claude check its own work: a verify loop that runs your project's checks before Claude finishes a turn, a review loop that reviews and fixes a branch diff, and a docs check that compares the documentation with the code.
+A Claude Code plugin that builds a harness into your project. The harness is hooks that stop dangerous operations. A verify loop runs your project's checks before Claude finishes a turn, and `/code-guard:setup-verify` creates the script it runs. The review loop and the docs check are in a separate plugin, [code-loops](https://github.com/103kaz/claude-code-loops).
 
 ## What it does not guarantee
 
@@ -96,22 +96,16 @@ exec "${CLAUDE_PROJECT_DIR:-.}/scripts/verify.sh"
 
 `.githooks/pre-push` and CI call `scripts/verify.sh` directly. The approval covers only the content of `.claude/verify.sh`, not the files it calls. After you approve the entry, a change to `scripts/verify.sh` (a `git pull` of someone else's commits, for example) runs without asking again. Use this layout only in a repository whose scripts you trust; in a cloned repository, keep the checks in `.claude/verify.sh` itself.
 
-## Review loop
+## Review loop and docs check
 
-`/code-guard:review-loop` runs verify, review and fix over the branch diff as one lap, and repeats until a lap finds nothing. It runs `.claude/verify.sh`, reviews the diff with the `code-review` skill (or reads it itself if that skill is missing), fixes the findings, and goes back to verify. Without `.claude/verify.sh` it skips verification and says so. A documentation-only diff is checked with `/code-guard:doc-code-consistency` instead. If three laps in a row still find something, it stops and reports what remains. It does not push or open a pull request.
-
-## Docs check
-
-`/code-guard:doc-code-consistency` checks that the documentation (README, `docs/`, `CLAUDE.md`, `CHANGELOG`, comments) matches the code, and reports contradictions, stale text and missing items with file:line evidence. It only reads, and changes files only when you ask it to fix a finding. Run it before a pull request on the branch diff, or name a document or feature to check.
-
-With `doc_check_before_pr` on, the plugin records the commit when the skill starts, whether Claude runs it or you type the slash command (only this bundled skill counts, not a personal skill of the same name) and blocks creating a pull request whose head is not that commit (no check yet, or commits added after it). The record is written when the check starts, whatever it finds, so it reminds rather than enforces.
+These skills (`review-loop`, `doc-code-consistency`) and the `doc_check_before_pr` setting moved to [code-loops](https://github.com/103kaz/claude-code-loops) in 0.3.0. See the [CHANGELOG](CHANGELOG.md#030).
 
 ## Token cost
 
 The plugin is built to stay out of the context window:
 
 - The guards and the hook that marks the start of a turn print nothing when they pass. Only a block or an ask adds a few lines.
-- The only text always in the session is the one-line descriptions of the three skills, `/code-guard:setup-verify`, `/code-guard:doc-code-consistency` and `/code-guard:review-loop`. Their instructions load only when they run. setup-verify tells Claude to read build files sparingly; doc-code-consistency reads as much as the scope you give it, so name a branch diff or a document rather than the whole repository; review-loop reads the branch diff only.
+- The only text always in the session is the one-line description of the skill `/code-guard:setup-verify`. Its instructions load only when it runs, and it reads build files sparingly.
 - A failing `verify.sh` returns at most 80 lines and 6000 bytes. Keep `verify.sh` quiet on success and fast (`--quiet` flags help).
 
 ## Settings
@@ -123,7 +117,6 @@ Change them in the `/plugin` settings screen. They are read from user and manage
 | `protected_branches` | `main`, `master` | branches push is blocked for (`*` matches any run of branch-name characters: `release/*`) |
 | `confirm_push` | `true` | ask before pushing a work branch |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | enable the pack |
-| `doc_check_before_pr` | `false` | block `gh pr create` (and an MCP `create_pull_request`) until `/code-guard:doc-code-consistency` has checked the branch head |
 | `verify_missing_notice` | `true` | tell once per session when files changed and `.claude/verify.sh` is missing |
 | `verify_max_retry` | `3` | verify loop retries per turn (1-10) |
 
@@ -177,7 +170,6 @@ Developed against Claude Code 2.1.293. The hooks set `onFailure: "block"`, which
 ```bash
 bash tests/test-guard.sh    # guards, packs, settings (checks run in parallel; GUARD_TEST_JOBS sets how many, at most 8)
 bash tests/test-verify.sh   # verify loop
-bash tests/test-doc-check.sh  # docs check before a PR
 bash tests/test-check-deps.sh  # dependency check at session start
 bash tests/test-check-enabled.sh  # warning for a project that switches the plugin off
 ```

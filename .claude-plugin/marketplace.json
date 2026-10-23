@@ -1,13 +1,17 @@
 {
   "name": "claude-code-guard",
-  "description": "Harness and loops for Claude Code: guard hooks, a verify loop, a review loop and a docs check.",
-  "owner": { "name": "103kaz" },
+  "description": "Harness for Claude Code: guard hooks and a verify loop.",
+  "owner": {
+    "name": "103kaz"
+  },
   "plugins": [
     {
       "name": "code-guard",
       "source": "./",
-      "description": "Harness and loops for Claude Code: guard hooks, a verify loop, a review loop and a docs check.",
-      "author": { "name": "103kaz" }
+      "description": "Harness for Claude Code: guard hooks and a verify loop.",
+      "author": {
+        "name": "103kaz"
+      }
     }
   ]
 }
