@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The MCP guard no longer reads the whole input of a tool to guess whether it is SQL. A tool whose name has `query`, `sql`, `execute`, `exec`, `statement` (new), `migration` or `migrate` is judged as before (any data-changing keyword in the input asks). Any other tool is judged only by the values of fields named `sql`, `statement`, `statements` or `stmt`. **Messages that read like a statement no longer ask** ("call me (555-1234)", "grant access to bob", "drop table soon"), and SQL in a field with another name (`query`, `q`, `input`) passes for a tool whose name has no SQL word. Tools named `query`, `sql` and so on are unchanged. See the Known limits.
+
 ## 0.4.0 (2026-10-23)
 
 - `confirm_push` now defaults to `false`: a push to a work branch no longer asks. Pushes to protected branches are still blocked, and a force push or a push whose target cannot be read still asks. Set `confirm_push` to `true` in the plugin settings to ask on every push as before.
@@ -45,7 +49,7 @@
 - When a grep or rg is in the command, quoted strings without a slash are not inspected for `*.pem` / `*.key` (`grep -rn foo . ; cat "server.key"` passes).
 - Secret names are matched without case, except `.Key` (a common JSON field). Other spellings of a field path such as `jq '.ITEM.KEY'` are blocked as key files.
 - `cat -- -m "<file>"`: a value after `--` that follows a message flag is treated as message text.
-- For an MCP tool without `query`, `sql`, `execute`, `exec` or `migration` in its name, SQL is found only by the shapes listed in the spec. Other forms pass (`DO $$ ... $$`, `EXEC sp_x`). Text that reads like one of those shapes asks, so plain messages such as "call me (555-1234)", "grant access to bob", "create type definitions", "we drop index cards" or "drop table soon" ask too, including those sent to a chat or mail tool. This is kept on purpose: narrowing the shape (to a statement that starts a sentence or ends with `;`) would let `run` / `statement` tools pass a statement written without them.
+- An MCP tool whose name has none of `query`, `sql`, `execute`, `exec`, `statement` or `migration` is judged only by the values of fields named `sql`, `statement`, `statements` or `stmt`. SQL in a field with another name (`input`, `code`, `query`, `q`) passes, and so do forms the keyword rule does not list (`DO $$ ... $$`, `EXEC sp_x`). Text in other fields is never read, so a message such as "call me (555-1234)" or "drop table soon" passes.
 - A repository can switch the plugin off through `enabledPlugins` in its own settings. The plugin cannot notice (it runs no hooks then); `scripts/check-enabled.sh` registered in the user's settings warns about the two project settings files, not about managed settings or other places.
 - Per-project configuration is not handled.
 - The approval of a `verify.sh` is a hash checked just before the run; a file changed between the check and the run is not caught. The approval covers `verify.sh` itself, not the files it calls. The ask on `trust-verify.sh` does not see a name built at run time. `bash .claude/verify.sh` typed by Claude is not stopped (the loop's own run is what the approval gates).
