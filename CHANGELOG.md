@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `confirm_push` now defaults to `false`: a push to a work branch no longer asks. Pushes to protected branches are still blocked, and a force push or a push whose target cannot be read still asks. Set `confirm_push` to `true` in the plugin settings to ask on every push as before.
+
 ## 0.3.0
 
 - **Breaking:** `/code-guard:review-loop`, `/code-guard:doc-code-consistency` and the `doc_check_before_pr` setting are removed, together with the three docs-check hooks (`doc-check.sh`). code-guard keeps the guards, the verify loop and `/code-guard:setup-verify`.

@@ -969,9 +969,9 @@ _run_check_env() {
   fi
 }
 check_env() { spawn _run_check_env "$@"; }
-# confirm_push: default on asks for a work-branch push, off passes. Protected-branch block does not depend on it
+# confirm_push: default off passes a work-branch push, on asks. Protected-branch block does not depend on it
 check_env $ASK   'git push origin feat/x' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=true
-check_env $ASK   'git push origin feat/x' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=
+check_env $ALLOW 'git push origin feat/x' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=
 check_env $ALLOW 'git push origin feat/x' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 check_env $BLOCK 'git push origin main' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 check_env $ASK   'git push -f origin feat/x' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
