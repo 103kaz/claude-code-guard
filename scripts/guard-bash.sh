@@ -485,8 +485,8 @@ if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]](-f|--force|--force-with-lease)" <<<
   add_ask "git push --force: overwrites remote history. Confirm the user has OKed a force push of this branch in chat before approving"
 fi
 
-# Ordinary push to a work branch (no force): ask unless confirm_push is off
-if [ -z "$pending_ask" ] && [ "$(opt_bool CONFIRM_PUSH true)" = true ] \
+# Ordinary push to a work branch (no force): ask only when confirm_push is on
+if [ -z "$pending_ask" ] && [ "$(opt_bool CONFIRM_PUSH false)" = true ] \
    && grep -Eq "${GIT_PUSH}([[:space:]\"';&|)]|$)" <<<"$cmd_msg"; then
   add_ask "git push: confirm the user wants this push before approving"
 fi
