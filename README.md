@@ -2,7 +2,7 @@
 
 [日本語](README.ja.md)
 
-A Claude Code plugin that builds a harness into your project. The harness is hooks that stop dangerous operations. A verify loop runs your project's checks before Claude finishes a turn, and `/code-guard:setup-verify` creates the script it runs. The review loop and the docs check are in a separate plugin, [code-loops](https://github.com/103kaz/claude-code-loops).
+A Claude Code plugin that builds a harness into your project. The harness is hooks that stop dangerous operations. A verify loop runs your project's checks before Claude finishes a turn, and `/code-guard:setup-verify` creates the script it runs. The review loop and the docs check were removed in 0.3.0.
 
 ## What it does not guarantee
 
@@ -95,10 +95,6 @@ exec "${CLAUDE_PROJECT_DIR:-.}/scripts/verify.sh"
 ```
 
 `.githooks/pre-push` and CI call `scripts/verify.sh` directly. The approval covers only the content of `.claude/verify.sh`, not the files it calls. After you approve the entry, a change to `scripts/verify.sh` (a `git pull` of someone else's commits, for example) runs without asking again. Use this layout only in a repository whose scripts you trust; in a cloned repository, keep the checks in `.claude/verify.sh` itself.
-
-## Review loop and docs check
-
-These skills (`review-loop`, `doc-code-consistency`) and the `doc_check_before_pr` setting moved to [code-loops](https://github.com/103kaz/claude-code-loops) in 0.3.0. See the [CHANGELOG](CHANGELOG.md#030).
 
 ## Token cost
 

@@ -1,6 +1,6 @@
 # code-guard 仕様 (v1)
 
-Claude Code のプラグイン `code-guard` の仕様。Claude Code にハーネスを組み込む。ハーネスは、Claude Code が実行しようとする危ない操作をフックで止める仕組み。ループは、ファイルを変えたまま応答を終えようとしたらプロジェクトの検証を走らせる検証ループ。差分のレビューを回す `review-loop` と文書と実装の照合 `doc-code-consistency` は、0.3.0 でプラグイン `code-loops` (リポジトリ `103kaz/claude-code-loops`) に分けた。
+Claude Code のプラグイン `code-guard` の仕様。Claude Code にハーネスを組み込む。ハーネスは、Claude Code が実行しようとする危ない操作をフックで止める仕組み。ループは、ファイルを変えたまま応答を終えようとしたらプロジェクトの検証を走らせる検証ループ。差分のレビューを回す `review-loop` と文書と実装の照合 `doc-code-consistency` は、0.3.0 で削除した。
 
 ## 決まっていること
 
@@ -8,7 +8,7 @@ Claude Code のプラグイン `code-guard` の仕様。Claude Code にハーネ
 |---|---|
 | リポジトリ | `103kaz/claude-code-guard` |
 | プラグイン名 | `code-guard` (`claude-` で始まる名前は予約されていて使えない) |
-| v1 の範囲 | ガードと検証ループ。補助のスキルとして、`setup-verify` (検証ループの雛形)。`review-loop` と `doc-code-consistency` は `code-loops` に分けた |
+| v1 の範囲 | ガードと検証ループ。補助のスキルとして、`setup-verify` (検証ループの雛形)。`review-loop` と `doc-code-consistency` は 0.3.0 で削除した |
 | 中核のルール | 利用者は緩められない。設定で変えられるのは、守るブランチ、パックの有効・無効、検証ループのやり直しの回数など |
 | 言語 | Claude に返すメッセージは英語。README は英語と日本語 |
 | 依存 | bash 3.2 以上、jq、perl。macOS と Linux。Windows は対象外 |
@@ -156,10 +156,6 @@ Glob はファイル名を返すだけなので対象にしない。
 
 検証ループは Claude に直させるための仕組みで、強制ではない。`verify.sh` を通さずに終える方法は残る。承認が及ぶのは `verify.sh` 自身で、それが呼ぶファイル (`make`、`npm test`、`bash scripts/ci.sh`) は及ばない。承認は、ループが走らせる直前にハッシュを照らすだけで、照らした後からの差し替えは見ない。ask の判定は補助で、実行時に組み立てた名前は通る。Claude が自分で打つ `bash .claude/verify.sh` は止めない (承認が止めるのは、ループによる自動実行)。
 
-## レビューのループと文書の照合
-
-`review-loop`、`doc-code-consistency` のスキルと、PR の前の照合 (`doc_check_before_pr`) は、0.3.0 でプラグイン `code-loops` に分けた。code-guard には残さない。
-
 ## 設定 (userConfig)
 
 | キー | 型 | 既定 | 内容 |
@@ -227,7 +223,7 @@ README の先頭近くに書く。
 ## 対象外 (v1)
 
 - 運用ルール (PR の書き方、コミットメッセージ、文章の方針)
-- コードレビューのスキル (`adversarial-review`) と `/retro`、`/address-comments`。差分のレビューを回す `review-loop` と文書と実装の照合 `doc-code-consistency` は、プラグイン `code-loops` にある
+- コードレビューのスキル (`adversarial-review`) と `/retro`、`/address-comments`。差分のレビューを回す `review-loop` と文書と実装の照合 `doc-code-consistency` は、0.3.0 で削除した
 - pre-push の gitleaks
 - サンドボックスの設定 (README の例だけ)
 - Windows

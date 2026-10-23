@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-Claude Code にハーネスを組み込むプラグインです。ハーネスは、危ない操作をフックで止める仕組みです。検証ループは、応答を終える前にプロジェクト自身の検証を走らせ、その `verify.sh` は `/code-guard:setup-verify` で作れます。レビューのループと文書の照合は、別のプラグイン [code-loops](https://github.com/103kaz/claude-code-loops) に分けました。
+Claude Code にハーネスを組み込むプラグインです。ハーネスは、危ない操作をフックで止める仕組みです。検証ループは、応答を終える前にプロジェクト自身の検証を走らせ、その `verify.sh` は `/code-guard:setup-verify` で作れます。レビューのループと文書の照合は、0.3.0 で削除しました。
 
 ## 保証しないこと
 
@@ -95,10 +95,6 @@ exec "${CLAUDE_PROJECT_DIR:-.}/scripts/verify.sh"
 ```
 
 `.githooks/pre-push` や CI は `scripts/verify.sh` を直接呼びます。承認の対象は `.claude/verify.sh` の中身だけで、そこから呼ぶファイルは含まれません。入口を承認した後で `scripts/verify.sh` が変わると (他人のコミットを `git pull` したときなど)、あらためて確認されずに走ります。この形は、中身を信頼できるリポジトリだけで使います。クローンしたリポジトリでは、検査を `.claude/verify.sh` に直接書きます。
-
-## レビューのループと文書の照合
-
-これらのスキル (`review-loop`、`doc-code-consistency`) と設定 `doc_check_before_pr` は、0.3.0 で [code-loops](https://github.com/103kaz/claude-code-loops) に移しました。[CHANGELOG](CHANGELOG.md#030) を見てください。
 
 ## トークンの消費
 

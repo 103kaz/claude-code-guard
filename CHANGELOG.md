@@ -2,7 +2,7 @@
 
 ## 0.3.0
 
-- **Breaking:** `/code-guard:review-loop`, `/code-guard:doc-code-consistency` and the `doc_check_before_pr` setting moved to the separate plugin [code-loops](https://github.com/103kaz/claude-code-loops) (`/code-loops:review-loop`, `/code-loops:doc-code-consistency`). code-guard keeps the guards, the verify loop and `/code-guard:setup-verify`. To keep the skills, install `code-loops` and turn `doc_check_before_pr` on again there; the value is not carried over. The three docs-check hooks (`doc-check.sh`) are removed from code-guard.
+- **Breaking:** `/code-guard:review-loop`, `/code-guard:doc-code-consistency` and the `doc_check_before_pr` setting are removed, together with the three docs-check hooks (`doc-check.sh`). code-guard keeps the guards, the verify loop and `/code-guard:setup-verify`.
 
 ## 0.2.2 (2026-10-22)
 

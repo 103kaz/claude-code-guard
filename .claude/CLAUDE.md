@@ -21,4 +21,4 @@ bash tests/test-check-enabled.sh
 ## PR
 - 変更はブランチを切って PR にする。main へ直接 push しない (空のリモートへの初回 push だけ例外)。
 - タイトルと本文は日本語、`feat:` `fix:` などのプレフィックスを付ける。
-- PR を作る前に、doc-code-consistency スキル (プラグイン `code-loops` の `/code-loops:doc-code-consistency`) で、ブランチの差分の文書が実装と合っているかを確かめる。食い違いを直したら確かめ直す。
+- PR を作る前に、doc-code-consistency スキルで、ブランチの差分の文書が実装と合っているかを確かめる。食い違いを直したら確かめ直す。
