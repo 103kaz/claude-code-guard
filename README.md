@@ -163,7 +163,7 @@ Checked with Claude Code 2.1.293 and the settings above: both test scripts pass,
 
 ## Tested versions
 
-Developed against Claude Code 2.1.293. The hooks set `onFailure: "block"`, which Claude Code 2.1.295 and later support; it has not been verified on a real session yet. Older versions ignore the key and fall back to the exit-code behaviour.
+Developed against Claude Code 2.1.293. The hooks set `onFailure: "block"`, which Claude Code 2.1.295 and later support. It was checked on 2.1.306 with `tests/manual-check-onfailure.sh`: a PreToolUse hook that exits 1, times out or cannot run stops the tool call, and an exit 1 without the key does not. 2.1.295 to 2.1.305 were not tried. Older versions ignore the key and fall back to the exit-code behaviour.
 
 ## Development
 
@@ -173,6 +173,7 @@ bash tests/test-verify.sh   # verify loop
 bash tests/test-check-deps.sh  # dependency check at session start
 bash tests/test-check-enabled.sh  # warning for a project that switches the plugin off
 bash tests/test-chain.sh  # command chained to a sandbox-excluded command
+bash tests/manual-check-onfailure.sh  # needs a logged-in claude: checks that onFailure "block" stops a tool call (not run by CI)
 ```
 
 When you change a guard decision, add cases to `tests/test-guard.sh` first.
