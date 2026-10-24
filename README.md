@@ -43,7 +43,7 @@ Each decision is one of: **block** (exit 2, cannot be approved), **ask** (a conf
 
 Protected branches are judged by branch name, not by whether the repository is a throwaway. A push to `main` in a scratch repository is blocked too, unless it is a first push (no force, no remote-tracking branch yet) to a reachable, empty remote; that one asks. To test pushing, use a work branch.
 
-Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar. A `$(...)` or backtick inside a double-quoted value or an unquoted heredoc runs, so it is judged.
+Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar. A `$(...)` or backtick inside a double-quoted value or an unquoted heredoc runs, so it is judged. For the `git push` refspec rules (`:`, a lone `:`, wildcards, brace expansion), the quoted strings of a `grep`, `egrep`, `fgrep`, `rg`, `ag`, `echo` or `printf` segment are not read either (`grep -n "git push *" f` searches for text, it does not push), under the same exceptions; an unquoted mention (`echo git push *`) is still judged.
 
 ### File tools (`guard-file.sh`)
 
