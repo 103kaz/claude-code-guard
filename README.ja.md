@@ -174,6 +174,7 @@ bash tests/test-check-deps.sh  # セッション開始時の依存の確認
 bash tests/test-check-enabled.sh  # プロジェクトがプラグインを外すときの警告
 bash tests/test-chain.sh  # サンドボックスの除外コマンドへの連結
 bash tests/manual-check-onfailure.sh  # ログイン済みの claude が要る: onFailure "block" がツールの呼び出しを止めるかの確認 (CI では流さない)
+bash tests/manual-check-multiple.sh  # ログイン済みの claude が要る: multiple の設定がフックに渡る形の確認 (CI では流さない)
 ```
 
 ガードの判定を変えるときは、先に `tests/test-guard.sh` にケースを足します。
