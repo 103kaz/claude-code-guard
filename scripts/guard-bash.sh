@@ -53,7 +53,8 @@ HEREDOC_AWK='function grab(s,   i, n, c, out, j) { out = ""; n = length(s)
 
 # Where a command can sit: after line start / ; & | ( ` $( , or right after a quote of bash -c / eval / exec.
 # Words between (env / timeout / sudo -u x / VAR="a b" prefixes; a quoted value is one word) and a path (/opt/homebrew/bin/git) are skipped.
-# No match when no unquoted command name follows the words (echo "git push" is not caught; eval "git push" and bash -c "git push" are)
+# No match when no unquoted command name follows the words (echo "git push" is not caught; eval "git push" and bash -c "git push" are).
+# The exception is text fed to a shell on stdin (echo "git push" | bash): its quoted strings are added as lines before the git rules read them
 CMDPOS="((^|[;&|(\`]|\\\$\\()|((bash|sh|zsh|dash)[^;&|\"']*-[A-Za-z]*c[[:space:]]+[\"'])|((eval|exec)[[:space:]]+[\"']))[[:space:]]*((([^;&|\"'\`()[:space:]]|\"[^\"]*\"|'[^']*')+[[:space:]]+)*)([^[:space:];&|\"']*/)?"
 
 # Operations that need approval are asked last, after every block rule has been passed
@@ -355,6 +356,16 @@ fi
 GITOPTS="(-[Cc][[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:]]+)|--(git-dir|work-tree|namespace|exec-path|super-prefix|config-env)[[:space:]]+(\"[^\"]*\"|[^[:space:]]+)|-[^[:space:]]+)"
 GIT_PUSH="${CMDPOS}git([[:space:]]+${GITOPTS})*[[:space:]]+push"
 GIT="${CMDPOS}git([[:space:]]+${GITOPTS})*[[:space:]]+"
+# A shell that reads its program from standard input runs the text it is fed, quoted or not: echo "git push origin main" | bash,
+# bash <<< "git push ...", ... | source /dev/stdin. The quoted strings of such a command are then commands too, so they are
+# added to the text the rules below read, one per line (a \n inside becomes a line break, as printf makes it). A shell given a
+# script or -c (| bash script.sh) does not read stdin, and a pipe to anything else only prints, so those are left alone
+PIPE_WRAP="((sudo|env|command|exec|nohup|nice)([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*([^[:space:]|;&]*/)?"
+STDIN_SHELL="(ba|z|da|k|c|tc|fi)?sh([[:space:]]+-[A-Za-z]+)*"
+if grep -Eq "\|[[:space:]]*${PIPE_WRAP}${STDIN_SHELL}([[:space:]]+(-|/dev/stdin|/dev/fd/0))?[[:space:]]*([;&|)]|$)|\|[[:space:]]*${PIPE_WRAP}(source|\.)[[:space:]]+(/dev/stdin|/dev/fd/0)([[:space:];&|)]|$)|${P}${STDIN_SHELL}[[:space:]]*<<<" <<<"$cmd_msg"; then
+  fed="$(perl -0ne 'while (/"((?:[^"\\]|\\.)*)"|\x27([^\x27]*)\x27/gs) { my $s = defined $1 ? $1 : $2; $s =~ s/\\n/\n/g; print "$s\n" }' <<<"$cmd_msg" 2>/dev/null)" || fed=""
+  [ -n "$fed" ] && cmd_msg="$cmd_msg"$'\n'"$fed"
+fi
 # Hook bypass on commit and merge: --no-verify (and abbreviations) and commit -n. Quoted text is not an option
 cmd_nq="$(sed -E "s/\"[^\"]*\"//g; s/'[^']*'//g" <<<"$cmd_msg")"
 if grep -Eq "${GIT}(commit|merge|am|rebase|cherry-pick|revert|pull)([^|;&]*)[[:space:]]--no-v[a-z]*([^[:alnum:]-]|$)" <<<"$cmd_nq" \
@@ -606,7 +617,6 @@ fi
 #   - a shell anywhere later in the pipe (curl | grep -v '#' | bash still runs the fetched text)
 #   - an interpreter right after curl, or after tee / cat only (they pass the text through unchanged)
 #   - an interpreter later that reads its program from stdin (no arguments, or -). curl | jq | perl -ne '...' reads data
-PIPE_WRAP="((sudo|env|command|exec|nohup|nice)([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*([^[:space:]|;&]*/)?"
 PIPE_INTERP="(python[0-9.]*|perl|ruby|node|deno|bun|php|lua|osascript)"
 if grep -Eq "(curl|wget)([^;&]*)\|[[:space:]]*${PIPE_WRAP}(ba|z|da|k|c|tc|fi)?sh([[:space:]\"';&|)]|$)" <<<"$cmd" \
    || grep -Eq "(curl|wget)[^;&|]*(\|[[:space:]]*(sudo[[:space:]]+)?(tee|cat)([[:space:]][^;&|]*)?)*\|[[:space:]]*${PIPE_WRAP}${PIPE_INTERP}([[:space:]\"';&|)]|$)" <<<"$cmd" \

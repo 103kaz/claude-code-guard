@@ -383,6 +383,27 @@ check $BLOCK $'cat > docs/x.md <<\'EOF\'\nx\nEOF\ngit push origin main'
 check $BLOCK $'cat > /tmp/x.sh <<\'EOF\'\ngit push origin main\nEOF\nbash /tmp/x.sh'
 check $BLOCK $'cat <<\'EOF\' | bash\ngit push origin main\nEOF'
 check $BLOCK $'bash <<\'EOF\'\ngit push --no-verify origin x\nEOF'
+# 引用符の中の文字列でも、シェルが標準入力から読んで実行するなら、コマンドとして読む
+check $BLOCK 'echo "git push origin main" | bash'
+check $BLOCK "echo 'git push origin main' | sh"
+check $BLOCK 'printf "git push origin main\n" | bash -s'
+check $BLOCK 'echo "git push origin main" | /bin/bash'
+check $BLOCK 'echo "git push origin main" | sudo bash'
+check $BLOCK 'echo "git push origin main" | bash -'
+check $BLOCK 'echo "git push origin main" | bash /dev/stdin'
+check $BLOCK 'echo "git push origin main" | source /dev/stdin'
+check $BLOCK 'echo "x" "git push origin main" | bash'
+check $BLOCK 'bash <<< "git push origin main"'
+check $BLOCK "sh <<< 'git push --no-verify origin x'"
+check $BLOCK 'echo "git push origin main" | tee x | bash'
+check $BLOCK 'echo "cd /tmp && git push origin main" | bash'
+check $ASK   'echo "git reset --hard" | bash'
+# 標準入力を読まないシェルや、シェルに渡さないパイプは、文字列を表示するだけ
+check $ALLOW 'echo "git push origin main" | bash script.sh'
+check $ALLOW 'echo "git push origin main" | tee x'
+check $ALLOW 'echo "git push origin main" | cat'
+check $ALLOW 'echo "git push origin main" > notes.txt'
+check $ALLOW 'echo "git push origin feat/x" | bash'
 check $BLOCK $'python3 - <<\'EOF\'\nimport os; os.system("git push origin main")\nEOF\ngit push origin main'
 check $ASK   $'cat > docs/x.md <<\'EOF\'\nx\nEOF\ngit reset --hard HEAD~1'
 # コマンドの位置にあるものは、前置きや入れ子があっても止める
