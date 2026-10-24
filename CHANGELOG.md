@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `onFailure: "block"` was checked on Claude Code 2.1.306: a PreToolUse hook that exits 1, times out or cannot run stops the tool call, and an exit 1 without the key does not. The check is `tests/manual-check-onfailure.sh` (needs a logged-in `claude`; not run by CI). The README and the spec now say so.
+
 ## 0.5.0 (2026-10-23)
 
 - The MCP guard no longer reads the whole input of a tool to guess whether it is SQL. A tool whose name has `query`, `sql`, `execute`, `exec`, `statement` (new), `migration` or `migrate` is judged as before (any data-changing keyword in the input asks). Any other tool is judged only by the values of fields named `sql`, `statement`, `statements` or `stmt`. **Messages that read like a statement no longer ask** ("call me (555-1234)", "grant access to bob", "drop table soon"), and SQL in a field with another name (`query`, `q`, `input`) passes for a tool whose name has no SQL word. Tools named `query`, `sql` and so on are unchanged. See the Known limits.
