@@ -357,14 +357,17 @@ GITOPTS="(-[Cc][[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:]]+)|--(git-dir|work-tr
 GIT_PUSH="${CMDPOS}git([[:space:]]+${GITOPTS})*[[:space:]]+push"
 GIT="${CMDPOS}git([[:space:]]+${GITOPTS})*[[:space:]]+"
 # A shell that reads its program from standard input runs the text it is fed, quoted or not: echo "git push origin main" | bash,
-# bash <<< "git push ...", ... | source /dev/stdin. The quoted strings of such a command are then commands too, so they are
-# added to the text the rules below read, one per line (a \n inside becomes a line break, as printf makes it). A shell given a
-# script or -c (| bash script.sh) does not read stdin, and a pipe to anything else only prints, so those are left alone
-PIPE_WRAP="((sudo|env|command|exec|nohup|nice)([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*([^[:space:]|;&]*/)?"
-STDIN_SHELL="(ba|z|da|k|c|tc|fi)?sh([[:space:]]+-[A-Za-z]+)*"
-if grep -Eq "\|[[:space:]]*${PIPE_WRAP}${STDIN_SHELL}([[:space:]]+(-|/dev/stdin|/dev/fd/0))?[[:space:]]*([;&|)]|$)|\|[[:space:]]*${PIPE_WRAP}(source|\.)[[:space:]]+(/dev/stdin|/dev/fd/0)([[:space:];&|)]|$)|${P}${STDIN_SHELL}[[:space:]]*<<<" <<<"$cmd_msg"; then
-  fed="$(perl -0ne 'while (/"((?:[^"\\]|\\.)*)"|\x27([^\x27]*)\x27/gs) { my $s = defined $1 ? $1 : $2; $s =~ s/\\n/\n/g; print "$s\n" }' <<<"$cmd_msg" 2>/dev/null)" || fed=""
+# bash <<< "git push ...", ... | source /dev/stdin (lib/stdin-shell.pl). The quoted strings of such a command are then commands
+# too, and so is the whole command with its quotes removed (echo git" push origin main" | bash). They are added to the text the
+# rules below read, one per line (a \n inside becomes a line break, as printf makes it). A shell given a script, -c or -n does
+# not read stdin, and a pipe to anything else only prints, so those are left alone
+perl "${BASH_SOURCE[0]%/*}/lib/stdin-shell.pl" <<<"$cmd_msg" 2>/dev/null
+stdin_rc=$?
+if [ "$stdin_rc" = 0 ]; then
+  fed="$(perl -0ne 'while (/"((?:[^"\\]|\\.)*)"|\x27([^\x27]*)\x27/gs) { my $s = defined $1 ? $1 : $2; $s =~ s/\\n/\n/g; print "$s\n" } (my $u = $_) =~ s/["\x27]//g; print $u' <<<"$cmd_msg" 2>/dev/null)" || fed=""
   [ -n "$fed" ] && cmd_msg="$cmd_msg"$'\n'"$fed"
+elif [ "$stdin_rc" != 1 ]; then
+  soft_block "the check for a shell that reads its program from stdin could not run (exit $stdin_rc); the command was not checked for it"
 fi
 # Hook bypass on commit and merge: --no-verify (and abbreviations) and commit -n. Quoted text is not an option
 cmd_nq="$(sed -E "s/\"[^\"]*\"//g; s/'[^']*'//g" <<<"$cmd_msg")"
@@ -617,6 +620,7 @@ fi
 #   - a shell anywhere later in the pipe (curl | grep -v '#' | bash still runs the fetched text)
 #   - an interpreter right after curl, or after tee / cat only (they pass the text through unchanged)
 #   - an interpreter later that reads its program from stdin (no arguments, or -). curl | jq | perl -ne '...' reads data
+PIPE_WRAP="((sudo|env|command|exec|nohup|nice)([[:space:]]+-[^[:space:]]+)*[[:space:]]+)*([^[:space:]|;&]*/)?"
 PIPE_INTERP="(python[0-9.]*|perl|ruby|node|deno|bun|php|lua|osascript)"
 if grep -Eq "(curl|wget)([^;&]*)\|[[:space:]]*${PIPE_WRAP}(ba|z|da|k|c|tc|fi)?sh([[:space:]\"';&|)]|$)" <<<"$cmd" \
    || grep -Eq "(curl|wget)[^;&|]*(\|[[:space:]]*(sudo[[:space:]]+)?(tee|cat)([[:space:]][^;&|]*)?)*\|[[:space:]]*${PIPE_WRAP}${PIPE_INTERP}([[:space:]\"';&|)]|$)" <<<"$cmd" \
