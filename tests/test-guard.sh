@@ -997,6 +997,14 @@ check_env $BLOCK 'git push origin HEAD:refs/heads/release/2.x' 'CLAUDE_PLUGIN_OP
 check_env $ALLOW 'git push origin releases/1.0' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["release/*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 check_env $ALLOW 'git push origin feat/release' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["release/*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 check_env $BLOCK 'git push origin hotfix-1' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["hotfix-*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+# The shape Claude Code really passes for a multiple option: the values joined with commas (tests/manual-check-multiple.sh)
+check_env $BLOCK 'git push origin release/1.0' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,release/*' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+check_env $ALLOW 'git push origin releases/1.0' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,release/*' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+check_env $BLOCK 'git push origin main' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,release/*' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+# A value with a space (a b,develop) does not break the other values
+check_env $BLOCK 'git push origin develop' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=a b,develop' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+# An empty list is an empty string and falls back to the default, as an unset option does
+check_env $BLOCK 'git push origin master' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 # packs: on by default, off passes. Core rules stay when a pack is off
 check_env $BLOCK 'terraform destroy'
 check_env $ALLOW 'terraform destroy' CLAUDE_PLUGIN_OPTION_PACK_TERRAFORM=false

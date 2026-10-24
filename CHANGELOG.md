@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Checked on Claude Code 2.1.306 that a `multiple` userConfig option reaches a hook as one string with the values joined by commas (`main,release/*`), that an option that is not set has no variable (the `default` in `plugin.json` is not passed) and that an empty list is an empty string. The hook reads all of these correctly, so the code is unchanged; tests for the real shape are added, and the spec records it. The check is `tests/manual-check-multiple.sh` (needs a logged-in `claude`; not run by CI).
+
 ## 0.5.0 (2026-10-23)
 
 - The MCP guard no longer reads the whole input of a tool to guess whether it is SQL. A tool whose name has `query`, `sql`, `execute`, `exec`, `statement` (new), `migration` or `migrate` is judged as before (any data-changing keyword in the input asks). Any other tool is judged only by the values of fields named `sql`, `statement`, `statements` or `stmt`. **Messages that read like a statement no longer ask** ("call me (555-1234)", "grant access to bob", "drop table soon"), and SQL in a field with another name (`query`, `q`, `input`) passes for a tool whose name has no SQL word. Tools named `query`, `sql` and so on are unchanged. See the Known limits.

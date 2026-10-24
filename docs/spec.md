@@ -41,7 +41,8 @@ claude-code-guard/
 │   ├── test-verify.sh
 │   ├── test-check-deps.sh
 │   ├── test-check-enabled.sh
-│   └── test-chain.sh
+│   ├── test-chain.sh
+│   └── manual-check-multiple.sh
 ├── docs/
 │   └── spec.md
 ├── .github/workflows/
@@ -187,7 +188,7 @@ Glob はファイル名を返すだけなので対象にしない。
 
 `userConfig` の型は `string`、`number`、`boolean`、`directory`、`file` の 5 つで、配列は `string` に `multiple: true` を付けて表す。`multiple` の項目は `/config` の一覧に出ないので、`/plugin` の設定の画面から変える。
 
-フックは値を環境変数 `CLAUDE_PLUGIN_OPTION_<KEY>` (`<KEY>` は大文字) で受け取る。値が読めないときや不正なときは既定値を使う。
+フックは値を環境変数 `CLAUDE_PLUGIN_OPTION_<KEY>` (`<KEY>` は大文字) で受け取る。値が読めないときや不正なときは既定値を使う。`multiple` の項目は、値をカンマでつないだ 1 つの文字列 (`main,release/*`) で入る。設定していない `multiple` の項目は変数そのものが無く (`plugin.json` の `default` は渡されない。`boolean` など他の型は確かめていない)、空の一覧は空文字になる。どちらもフックの側の既定値 (`protected_branches` なら `main` と `master`) を使う。このため、`default` を変えるときは、フックの側の既定値も同じにする (`multiple` について 2.1.306 で確かめた)。
 
 値は `pluginConfigs` に入る。公式ドキュメント (settings の `pluginConfigs`) によると、読まれるのはユーザーと managed の settings だけで、プロジェクトとローカルの settings に書いても無視される (クローンしたリポジトリから値を差し込めないようにするため)。守るブランチなどをプロジェクトごとに変えることはできないので、v1 の「対象外」のままにする。
 
@@ -223,6 +224,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | 依存の確認 | `tests/test-check-deps.sh` |
 | 無効化の警告 | `tests/test-check-enabled.sh` |
 | 連結の検知 | `tests/test-chain.sh` |
+| multiple の設定の形の確認 | `tests/manual-check-multiple.sh` (ログイン済みの claude が要る。手で流し、CI では流さない) |
 | マニフェスト | `claude plugin validate --strict` |
 | CI | GitHub Actions。PR では ubuntu、main への push では ubuntu と macOS。macOS は `/bin/bash` (3.2) で流す。public リポジトリなので無料 |
 
@@ -253,12 +255,12 @@ README の先頭近くに書く。
 - マーケットプレイスの名前は `claude-code-guard` (「配布」)。
 - `pluginConfigs` はプロジェクトの settings から読まれない (「設定」)。
 - block は exit 2 で返す (「判定の種類」)。
+- `multiple` の項目は、カンマでつないだ 1 つの文字列で渡る (2.1.306、`tests/manual-check-multiple.sh`)。「設定」の節に詳細を書いた。
 - メッセージの文面は下の「メッセージの案」。block の 2 行目は候補 1 にした。
 
 まだ決めていないもの:
 
 - `permissionDecision: "deny"` の画面の表示。exit 2 の表示はこの環境で見た (`PreToolUse:Bash hook error: [<コマンド>]: <stderr>`。「hook error」と出る)。deny を返すテスト用のプラグインを `claude -p --plugin-dir` で動かそうとしたが、`claude -p` の認証が切れていて (`OAuth session expired`) 動かせなかった。どちらで止めるかは exit 2 に決めたので、残るのは表示の違いを README に書くかどうかだけだ。
-- `multiple` の項目が `CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES` にどういう形 (JSON の配列か、区切り文字か) で入るか。ドキュメントに書かれておらず、上と同じ理由で試せていない。実装の最初に確かめる。
 - マーケットプレイスの名前は `claude plugin validate --strict` を通した。公開時の登録で弾かれるかは未確認。
 - フックの `onFailure: "block"` は 2.1.295 以降の機能で、開発に使った 2.1.293 では実機で確かめていない。古い版ではこのキーが無視され、終了コードの動作になる。
 - Read への deny と、フックの exit 2 で、画面の表示や Claude に届く文面がどう違うか。どちらで止めるかは exit 2 に決めてあり、違いは未確認。

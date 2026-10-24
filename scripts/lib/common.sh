@@ -45,7 +45,9 @@ pack_on() {
   [ "$(opt_bool "PACK_$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')" true)" = true ]
 }
 
-# Protected branches: CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES as a JSON array, or comma / space separated. Default main, master.
+# Protected branches: CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES. Claude Code passes a multiple option as one string with the values
+# joined by commas (main,release/*; checked with tests/manual-check-multiple.sh). An option that is not set has no variable and
+# an empty list is an empty string; both give the default, main, master. A JSON array and a space separated list are read too.
 _pb="$(printf '%s' "${CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES:-}" | tr -d '[]"' | tr ',' ' ')"
 PROTECTED_LIST=""
 set -f   # no glob expansion of the words below

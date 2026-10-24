@@ -173,6 +173,7 @@ bash tests/test-verify.sh   # verify loop
 bash tests/test-check-deps.sh  # dependency check at session start
 bash tests/test-check-enabled.sh  # warning for a project that switches the plugin off
 bash tests/test-chain.sh  # command chained to a sandbox-excluded command
+bash tests/manual-check-multiple.sh  # needs a logged-in claude: shows the shape a multiple option reaches a hook in (not run by CI)
 ```
 
 When you change a guard decision, add cases to `tests/test-guard.sh` first.
