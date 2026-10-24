@@ -42,6 +42,7 @@ claude-code-guard/
 │   ├── test-check-deps.sh
 │   ├── test-check-enabled.sh
 │   ├── test-chain.sh
+│   ├── test-defaults.sh
 │   ├── manual-check-onfailure.sh
 │   └── manual-check-multiple.sh
 ├── docs/
@@ -227,6 +228,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | 依存の確認 | `tests/test-check-deps.sh` |
 | 無効化の警告 | `tests/test-check-enabled.sh` |
 | 連結の検知 | `tests/test-chain.sh` |
+| 設定の既定の一致 | `tests/test-defaults.sh` (plugin.json の default と、設定が無いときのフックの動作が同じか) |
 | onFailure の実機確認 | `tests/manual-check-onfailure.sh` (ログイン済みの claude が要る。手で流し、CI では流さない) |
 | multiple の設定の形の確認 | `tests/manual-check-multiple.sh` (ログイン済みの claude が要る。手で流し、CI では流さない) |
 | マニフェスト | `claude plugin validate --strict` |
