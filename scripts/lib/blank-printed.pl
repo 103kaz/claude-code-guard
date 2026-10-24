@@ -1,75 +1,72 @@
 #!/usr/bin/perl
-# code-guard: empty the quoted strings that a read-only command only searches for or prints, so that the git push rules
+# code-guard: empty the quoted strings of a command that only searches for or prints text, so that the git push rules
 # do not read them as a push. grep -n "git push *" f and echo "git push origin :" mention a push, they do not run one.
-# Input: the command on stdin. Output: the same command with, in each segment (split at ; & | and a newline) whose first
-# word is grep, egrep, fgrep, rg, ag, echo or printf, every 'single-quoted' string and every "double-quoted" string
-# that has no $( or backtick emptied. A string that can run a command, an unquoted word, and every other segment are kept.
-# When the command cannot be read to the end (an unterminated quote), it is printed unchanged.
+#
+# This is an allow-list, not a shell parser. The command is changed only when the WHOLE command is made of
+#   segments joined by && || ; |
+# whose first word is grep, egrep, fgrep, rg, ag, echo, printf, head, tail, wc, ls or cat, and whose arguments are plain
+# words (letters, digits and . / : = , @ % + -) or quoted strings with no $, backtick or backslash-escape that can run
+# or hide anything. Anything else is printed unchanged: a $( ), a backtick, <( ) or >( ), a #, a newline, a lone &, a
+# redirect, a glob, an option that runs a program (--pre, --pager), another command, a pipe to anything not on the list.
+# Input: the command on stdin. Output: the command with 'single-quoted' and "double-quoted" arguments emptied, or unchanged.
 use strict;
 use warnings;
 
 local $/;
 my $c = <STDIN> // '';
-my $n = length $c;
+$c =~ s/\n\z//;    # the caller passes the command as a here-string, which adds one newline; a newline inside is not allowed
 
-# Split into segments at the separators outside quotes. @parts holds [text, separator] pairs
-my @parts;
-my $cur = '';
-my $i = 0;
-my $ok = 1;
-while ($i < $n) {
-  my $ch = substr($c, $i, 1);
-  if ($ch eq "'") {
-    my $e = index($c, "'", $i + 1);
-    if ($e < 0) { $ok = 0; last; }
-    $cur .= substr($c, $i, $e - $i + 1); $i = $e + 1; next;
-  }
-  if ($ch eq '"') {
-    my $j = $i + 1;
-    while ($j < $n) {
-      my $d = substr($c, $j, 1);
-      if ($d eq '\\') { $j += 2; next; }
-      last if $d eq '"';
-      $j++;
+my $cmd  = qr/(?:grep|egrep|fgrep|rg|ag|echo|printf|head|tail|wc|ls|cat)/;
+my $word = qr/[A-Za-z0-9_.\/:=,@%+-]+/;
+my $sq   = qr/'[^']*'/;
+my $dq   = qr/"(?:[^"\\\$`]|\\[^\$`"\\\n])*"/;
+my $ws   = qr/[ \t]+/;
+
+# Options that make these tools run a program of their own
+sub runs_program { return $_[0] =~ /\A--(?:pre|pre-glob|hostname-bin|pager|exec)(?:\z|=)/ ? 1 : 0; }
+
+my $out = '';
+my $pos = 0;
+my $len = length $c;
+pos($c) = 0;
+
+sub fail { print $c; exit 0; }
+
+# A zero-length match cannot repeat at the same position, so the end of the input is tested by position
+sub at_end { return ((pos($c) // 0) >= $len) ? 1 : 0; }
+
+$c =~ /\G[ \t]*/gc;
+while (1) {
+  # a command word
+  $c =~ /\G($cmd)(?=[ \t]|\z|[;|&])/gc or fail();
+  $out .= $1;
+  # arguments
+  while ($c =~ /\G($ws)/gc) {
+    my $sp = $1;
+    # an argument is one or more adjacent pieces: plain words and quoted strings
+    my $arg = '';
+    my $raw = '';
+    my $got = 0;
+    while (1) {
+      if    ($c =~ /\G($sq)/gc)   { $raw .= $1; $arg .= "''"; $got = 1; }
+      elsif ($c =~ /\G($dq)/gc)   { $raw .= $1; $arg .= '""'; $got = 1; }
+      elsif ($c =~ /\G($word)/gc) { $raw .= $1; $arg .= $1;   $got = 1; }
+      else { last; }
     }
-    if ($j >= $n) { $ok = 0; last; }
-    $cur .= substr($c, $i, $j - $i + 1); $i = $j + 1; next;
+    if (!$got) { pos($c) = pos($c) - length($sp); last; }   # whitespace before a separator or the end
+    fail() if runs_program($raw);
+    $out .= $sp . $arg;
   }
-  if ($ch eq '\\' && $i + 1 < $n) { $cur .= substr($c, $i, 2); $i += 2; next; }
-  # $( ... ) and `...` outside quotes stay in the segment as they are: they are not blanked, and a separator inside one
-  # only splits the segment earlier, which blanks less, never more
-  if ($ch =~ /[;|&\n]/) {
-    my $sep = $ch;
-    $i++;
-    while ($i < $n && substr($c, $i, 1) =~ /[;|&]/) { $sep .= substr($c, $i, 1); $i++; }
-    push @parts, [$cur, $sep];
-    $cur = '';
+  # trailing whitespace, then a separator or the end
+  $c =~ /\G([ \t]*)/gc; my $tail = $1;
+  if (at_end()) { $out .= $tail; last; }
+  if ($c =~ /\G(&&|\|\||;|\|)([ \t]*)/gc) {
+    my ($sep, $after) = ($1, $2);
+    # a separator must be followed by a command, not by the end ("a ;" is a complete command; "a &&" is not)
+    $out .= $tail . $sep . $after;
+    if (at_end()) { last if $sep eq ';'; fail(); }
     next;
   }
-  $cur .= $ch; $i++;
+  fail();
 }
-if (!$ok) { print $c; exit 0; }
-push @parts, [$cur, ''];
-
-# A double-quoted string that can run a command ($( ) or a backtick) is kept
-sub blank_quoted {
-  my ($s) = @_;
-  my $out = '';
-  while ($s =~ /\G(\\.|'[^']*'|"(?:[^"\\]|\\.)*"|[^'"\\]+|.)/gs) {
-    my $t = $1;
-    if ($t =~ /\A'/) { $out .= "''"; }
-    elsif ($t =~ /\A"/) { $out .= ($t =~ /\$\(|`/) ? $t : '""'; }
-    else { $out .= $t; }
-  }
-  return $out;
-}
-
-my $res = '';
-for my $p (@parts) {
-  my ($text, $sep) = @$p;
-  if ($text =~ /\A\s*(?:\S*\/)?(?:grep|egrep|fgrep|rg|ag|echo|printf)(?:\s|\z)/) {
-    $text = blank_quoted($text);
-  }
-  $res .= $text . $sep;
-}
-print $res;
+print $out;

@@ -1462,6 +1462,27 @@ check $BLOCK 'grep -n "git push *" f | bash'
 check $BLOCK 'grep -n "git push *" f | sh -s'
 check $BLOCK 'python3 -c "import os; os.system(\"git push origin :x\")"'
 check $BLOCK 'git push origin "*" # grep "x" f'
+# 引用符でない $( ) / バッククォート / >( ) の中の push は、先頭語が grep や echo でも空にしない
+check $BLOCK "grep x f \$(git push origin ':x')"
+check $BLOCK "echo \$(git push origin ':x')"
+check $BLOCK "grep x f >(git push origin ':x')"
+check $BLOCK "grep x f \`git push origin ':x'\`"
+# コメントの中の引用符や $'\'' で字句解析がずれても、次の行の push を引用符の中と誤認しない
+check $BLOCK $'echo a # \'\ngit push origin \':x\' # \''
+check $BLOCK $'grep x f # \'\ngit push origin \':x\' # \''
+check $BLOCK $'echo a # "\ngit push origin \':x\' # "'
+check $BLOCK $'echo $\'\\\'\' ; git push origin \':x\' ; echo $\'\\\'\''
+# 一覧に無い実行手段 (別のシェル、ssh、parallel、検索ツール自身の実行オプション) に渡る引用符の中身も空にしない
+check $BLOCK "echo 'git push origin :x' | ksh"
+check $BLOCK "echo 'git push origin :x' | fish"
+check $BLOCK "echo 'git push origin :x' | csh"
+check $BLOCK "echo 'git push origin :x' | tcsh"
+check $BLOCK "echo 'git push origin :x' | ssh localhost"
+check $BLOCK "echo 'git push origin :x' | parallel"
+check $BLOCK "echo 'git push origin :x' | \$SHELL"
+check $BLOCK "echo 'git push origin :x' | awk '{system(\$0)}'"
+check $BLOCK "rg --pre 'git push origin :x' y ."
+check $BLOCK "ag --pager 'git push origin :x' y"
 # cd / GIT_DIR で別のリポジトリに移ってからの push は、移った先のブランチで判定する
 check $BLOCK 'cd ../repo_main && git push'
 check $BLOCK 'cd ../repo_main && git push origin HEAD'

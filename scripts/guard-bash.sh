@@ -365,12 +365,11 @@ fi
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]](--no-v[a-z]*|--mi[a-z]*|--de[a-z]*|--pru[a-z]*|--all?|-[A-Za-z]*d[A-Za-z]*)([^[:alnum:]-]|$)" <<<"$cmd_msg"; then
   block "git push --no-verify / --mirror / --delete (-d) / --prune / --all is not allowed"
 fi
-# Stripping the quotes below would turn grep -n "git push *" f into grep -n git push * f, which reads like a push. Text that
-# grep / rg / echo / printf only searches for or prints is not a push, so its quoted strings are emptied first (lib/blank-printed.pl).
-# Not done when an interpreter, xargs, source or env is in the command: the text may be run. A failed run keeps the command as it is
+# Stripping the quotes below would turn grep -n "git push *" f into grep -n git push * f, which reads like a push. When the whole
+# command is only searches and prints (an allow-list: lib/blank-printed.pl), the quoted strings are emptied first. Any other
+# command keeps its text, so nothing that was stopped before is let through. A failed run keeps the command as it is
 cmd_scan="$cmd_msg"
-if grep -Eq "${P}(grep|egrep|fgrep|rg|ag|echo|printf)[[:space:]]" <<<"$cmd_msg" \
-   && ! grep -Eq "${P}(bash|sh|zsh|dash|eval|python[0-9.]*|node|perl|ruby|php|lua|osascript|swift|xargs|source|env)([[:space:]]|$)|(^|[;&|(])[[:space:]]*\.[[:space:]]" <<<"$cmd_msg"; then
+if grep -Eq "${P}(grep|egrep|fgrep|rg|ag|echo|printf)[[:space:]]" <<<"$cmd_msg"; then
   cmd_scan="$(perl "${BASH_SOURCE[0]%/*}/lib/blank-printed.pl" <<<"$cmd_msg" 2>/dev/null)" || cmd_scan="$cmd_msg"
   [ -n "$cmd_scan" ] || cmd_scan="$cmd_msg"
 fi
