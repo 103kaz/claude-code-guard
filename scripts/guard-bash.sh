@@ -53,7 +53,8 @@ HEREDOC_AWK='function grab(s,   i, n, c, out, j) { out = ""; n = length(s)
 
 # Where a command can sit: after line start / ; & | ( ` $( , or right after a quote of bash -c / eval / exec.
 # Words between (env / timeout / sudo -u x / VAR="a b" prefixes; a quoted value is one word) and a path (/opt/homebrew/bin/git) are skipped.
-# No match when no unquoted command name follows the words (echo "git push" is not caught; eval "git push" and bash -c "git push" are)
+# No match when no unquoted command name follows the words (echo "git push" is not caught; eval "git push" and bash -c "git push" are).
+# The exception is text fed to a shell on stdin (echo "git push" | bash): its quoted strings are added as lines before the git rules read them
 CMDPOS="((^|[;&|(\`]|\\\$\\()|((bash|sh|zsh|dash)[^;&|\"']*-[A-Za-z]*c[[:space:]]+[\"'])|((eval|exec)[[:space:]]+[\"']))[[:space:]]*((([^;&|\"'\`()[:space:]]|\"[^\"]*\"|'[^']*')+[[:space:]]+)*)([^[:space:];&|\"']*/)?"
 
 # Operations that need approval are asked last, after every block rule has been passed
@@ -355,6 +356,19 @@ fi
 GITOPTS="(-[Cc][[:space:]]+(\"[^\"]*\"|'[^']*'|[^[:space:]]+)|--(git-dir|work-tree|namespace|exec-path|super-prefix|config-env)[[:space:]]+(\"[^\"]*\"|[^[:space:]]+)|-[^[:space:]]+)"
 GIT_PUSH="${CMDPOS}git([[:space:]]+${GITOPTS})*[[:space:]]+push"
 GIT="${CMDPOS}git([[:space:]]+${GITOPTS})*[[:space:]]+"
+# A shell that reads its program from standard input runs the text it is fed, quoted or not: echo "git push origin main" | bash,
+# bash <<< "git push ...", ... | source /dev/stdin (lib/stdin-shell.pl). The quoted strings of such a command are then commands
+# too, and so is the whole command with its quotes removed (echo git" push origin main" | bash). They are added to the text the
+# rules below read, one per line (a \n inside becomes a line break, as printf makes it). A shell given a script, -c or -n does
+# not read stdin, and a pipe to anything else only prints, so those are left alone
+perl "${BASH_SOURCE[0]%/*}/lib/stdin-shell.pl" <<<"$cmd_msg" 2>/dev/null
+stdin_rc=$?
+if [ "$stdin_rc" = 0 ]; then
+  fed="$(perl -0ne 'while (/"((?:[^"\\]|\\.)*)"|\x27([^\x27]*)\x27/gs) { my $s = defined $1 ? $1 : $2; $s =~ s/\\n/\n/g; print "$s\n" } (my $u = $_) =~ s/["\x27]//g; print $u' <<<"$cmd_msg" 2>/dev/null)" || fed=""
+  [ -n "$fed" ] && cmd_msg="$cmd_msg"$'\n'"$fed"
+elif [ "$stdin_rc" != 1 ]; then
+  soft_block "the check for a shell that reads its program from stdin could not run (exit $stdin_rc); the command was not checked for it"
+fi
 # Hook bypass on commit and merge: --no-verify (and abbreviations) and commit -n. Quoted text is not an option
 cmd_nq="$(sed -E "s/\"[^\"]*\"//g; s/'[^']*'//g" <<<"$cmd_msg")"
 if grep -Eq "${GIT}(commit|merge|am|rebase|cherry-pick|revert|pull)([^|;&]*)[[:space:]]--no-v[a-z]*([^[:alnum:]-]|$)" <<<"$cmd_nq" \
@@ -365,9 +379,17 @@ fi
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]](--no-v[a-z]*|--mi[a-z]*|--de[a-z]*|--pru[a-z]*|--all?|-[A-Za-z]*d[A-Za-z]*)([^[:alnum:]-]|$)" <<<"$cmd_msg"; then
   block "git push --no-verify / --mirror / --delete (-d) / --prune / --all is not allowed"
 fi
+# Stripping the quotes below would turn grep -n "git push *" f into grep -n git push * f, which reads like a push. When the whole
+# command is only searches and prints (an allow-list: lib/blank-printed.pl), the quoted strings are emptied first. Any other
+# command keeps its text, so nothing that was stopped before is let through. A failed run keeps the command as it is
+cmd_scan="$cmd_msg"
+if grep -Eq "${P}(grep|egrep|fgrep|rg|ag|echo|printf)[[:space:]]" <<<"$cmd_msg"; then
+  cmd_scan="$(perl "${BASH_SOURCE[0]%/*}/lib/blank-printed.pl" <<<"$cmd_msg" 2>/dev/null)" || cmd_scan="$cmd_msg"
+  [ -n "$cmd_scan" ] || cmd_scan="$cmd_msg"
+fi
 # For refspec matching: drop -o / --push-option values and strip quotes and backslashes ("":feat/x becomes :feat/x after shell expansion)
 # Also strip the leading $ of $'...' and $"..." ($':feat/y' becomes :feat/y)
-cmd_refspec="$(sed -E "s/(^|[[:space:]])(-o|--push-option)([[:space:]]+|=)(\"[^\"]*\"|'[^']*'|[^[:space:]]+)//g; s/\\\$([\"'])/\\1/g; s/[\"'\\\\]//g" <<<"$cmd_msg")"
+cmd_refspec="$(sed -E "s/(^|[[:space:]])(-o|--push-option)([[:space:]]+|=)(\"[^\"]*\"|'[^']*'|[^[:space:]]+)//g; s/\\\$([\"'])/\\1/g; s/[\"'\\\\]//g" <<<"$cmd_scan")"
 # ANSI-C escapes ($'\x3afeat/y') cannot be resolved from the string, so stop them
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]\\\$'[^']*\\\\" <<<"$cmd_msg"; then
   block "escapes inside git push $'...' (\\x3a etc.) are not allowed because the refspec cannot be checked"

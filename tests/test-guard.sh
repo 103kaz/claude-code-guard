@@ -383,6 +383,52 @@ check $BLOCK $'cat > docs/x.md <<\'EOF\'\nx\nEOF\ngit push origin main'
 check $BLOCK $'cat > /tmp/x.sh <<\'EOF\'\ngit push origin main\nEOF\nbash /tmp/x.sh'
 check $BLOCK $'cat <<\'EOF\' | bash\ngit push origin main\nEOF'
 check $BLOCK $'bash <<\'EOF\'\ngit push --no-verify origin x\nEOF'
+# 引用符の中の文字列でも、シェルが標準入力から読んで実行するなら、コマンドとして読む
+check $BLOCK 'echo "git push origin main" | bash'
+check $BLOCK "echo 'git push origin main' | sh"
+check $BLOCK 'printf "git push origin main\n" | bash -s'
+check $BLOCK 'echo "git push origin main" | /bin/bash'
+check $BLOCK 'echo "git push origin main" | sudo bash'
+check $BLOCK 'echo "git push origin main" | bash -'
+check $BLOCK 'echo "git push origin main" | bash /dev/stdin'
+check $BLOCK 'echo "git push origin main" | source /dev/stdin'
+check $BLOCK 'echo "x" "git push origin main" | bash'
+check $BLOCK 'bash <<< "git push origin main"'
+check $BLOCK "sh <<< 'git push --no-verify origin x'"
+check $BLOCK 'echo "git push origin main" | tee x | bash'
+check $BLOCK 'echo "cd /tmp && git push origin main" | bash'
+check $ASK   'echo "git reset --hard" | bash'
+check $BLOCK 'echo "git push origin main" | bash 2>&1'
+check $BLOCK 'echo "git push origin main" | bash >/dev/null'
+check $BLOCK 'echo "git push origin main" | bash -s -- a'
+check $BLOCK 'echo "git push origin main" | bash -s x'
+check $BLOCK 'echo "git push origin main" | bash --posix'
+check $BLOCK 'echo "git push origin main" | bash -o pipefail'
+check $BLOCK 'echo "git push origin main" | bash -s # c'
+check $BLOCK 'echo "git push origin main" | (bash)'
+check $BLOCK 'echo "git push origin main" | { bash; }'
+check $BLOCK 'echo "git push origin main" | FOO=1 bash'
+check $BLOCK 'echo "git push origin main" | env FOO=1 bash'
+check $BLOCK 'echo "git push origin main" | /usr/bin/env bash'
+check $BLOCK 'echo "git push origin main" | time bash'
+check $BLOCK 'echo "git push origin main" | busybox sh'
+check $BLOCK 'echo "git push origin main" | xargs -I{} bash'
+check $BLOCK 'echo "git push origin main" | "bash"'
+check $BLOCK 'echo "git push origin main" | $SHELL'
+check $BLOCK 'bash -- <<< "git push origin main"'
+check $BLOCK 'bash 3<<< "git push origin main"'
+check $BLOCK 'bash < <(echo "git push origin main")'
+check $BLOCK 'echo git" push origin main" | bash'
+# スクリプト、-c、-n を渡したシェルや、grep などへのパイプは、標準入力をプログラムとして読まない
+check $ALLOW 'echo "git push origin main" | bash -n'
+check $ALLOW 'echo "git push origin main" | bash -c "cat"'
+check $ALLOW 'echo "git push origin main" | grep bash'
+# 標準入力を読まないシェルや、シェルに渡さないパイプは、文字列を表示するだけ
+check $ALLOW 'echo "git push origin main" | bash script.sh'
+check $ALLOW 'echo "git push origin main" | tee x'
+check $ALLOW 'echo "git push origin main" | cat'
+check $ALLOW 'echo "git push origin main" > notes.txt'
+check $ALLOW 'echo "git push origin feat/x" | bash'
 check $BLOCK $'python3 - <<\'EOF\'\nimport os; os.system("git push origin main")\nEOF\ngit push origin main'
 check $ASK   $'cat > docs/x.md <<\'EOF\'\nx\nEOF\ngit reset --hard HEAD~1'
 # コマンドの位置にあるものは、前置きや入れ子があっても止める
@@ -997,6 +1043,14 @@ check_env $BLOCK 'git push origin HEAD:refs/heads/release/2.x' 'CLAUDE_PLUGIN_OP
 check_env $ALLOW 'git push origin releases/1.0' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["release/*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 check_env $ALLOW 'git push origin feat/release' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["release/*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 check_env $BLOCK 'git push origin hotfix-1' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=["hotfix-*"]' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+# The shape Claude Code really passes for a multiple option: the values joined with commas (tests/manual-check-multiple.sh)
+check_env $BLOCK 'git push origin release/1.0' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,release/*' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+check_env $ALLOW 'git push origin releases/1.0' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,release/*' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+check_env $BLOCK 'git push origin main' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=main,release/*' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+# A value with a space (a b,develop) does not break the other values
+check_env $BLOCK 'git push origin develop' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=a b,develop' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+# An empty list is an empty string and falls back to the default, as an unset option does
+check_env $BLOCK 'git push origin master' 'CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES=' CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
 # packs: on by default, off passes. Core rules stay when a pack is off
 check_env $BLOCK 'terraform destroy'
 check_env $ALLOW 'terraform destroy' CLAUDE_PLUGIN_OPTION_PACK_TERRAFORM=false
@@ -1424,6 +1478,70 @@ check $ALLOW 'git push origin "feat/*"'
 check $ALLOW 'git push origin feature-*'
 check $ALLOW "git push origin 'refs/tags/*'"
 check $ALLOW 'git push origin feat/x && echo :done'
+# grep / rg / echo / printf が検索語や表示文字列として引用符の中に持つだけの push は、push ではない (refspec の規則に当てない)
+check $ALLOW 'grep -n "git push *" README.md'
+check $ALLOW "grep -n 'git push *' README.md"
+check $ALLOW 'grep -n "git push *" a.md && ls'
+check $ALLOW 'grep -n "git push *" a.md | head -3'
+check $ALLOW 'echo "git push *"'
+check $ALLOW 'rg -n "git push origin :feat/x" .'
+check $ALLOW 'echo "git push origin :"'
+check $ALLOW 'printf "%s\n" "git push origin +:"'
+check $ALLOW 'grep "git push origin ma{in,}" f'
+check $ALLOW 'grep -e "git push origin refs/heads/*:refs/heads/*" f'
+check $ALLOW 'cat f | grep "git push *"'
+# 引用符の外の push、別の区切りの後の push、実行される引用符 ($( ) と bash -c)、インタプリタや xargs を含むコマンドは、これまでどおり止める
+check $BLOCK 'git push *'
+check $BLOCK 'git push origin "*"'
+check $BLOCK 'echo "a" && git push origin "*"'
+check $BLOCK 'grep foo f; git push origin :x'
+check $BLOCK 'printf x ; git push origin :x'
+check $BLOCK 'echo "$(git push origin :main)"'
+check $BLOCK 'grep foo "$(git push origin :main)" f'
+check $BLOCK 'grep x f $(git push origin :main)'
+check $BLOCK 'grep x f `git push origin :main`'
+check $BLOCK 'ssh h "git push origin :x"'
+check $BLOCK 'bash -c "git push origin :x"'
+check $BLOCK 'sh -c "grep x f; git push origin :x"'
+check $BLOCK 'eval "git push origin :x"'
+check $BLOCK 'grep -n "git push *" f | bash'
+check $BLOCK 'grep -n "git push *" f | sh -s'
+check $BLOCK 'python3 -c "import os; os.system(\"git push origin :x\")"'
+check $BLOCK 'git push origin "*" # grep "x" f'
+# 引用符でない $( ) / バッククォート / >( ) の中の push は、先頭語が grep や echo でも空にしない
+check $BLOCK "grep x f \$(git push origin ':x')"
+check $BLOCK "echo \$(git push origin ':x')"
+check $BLOCK "grep x f >(git push origin ':x')"
+check $BLOCK "grep x f \`git push origin ':x'\`"
+# コメントの中の引用符や $'\'' で字句解析がずれても、次の行の push を引用符の中と誤認しない
+check $BLOCK $'echo a # \'\ngit push origin \':x\' # \''
+check $BLOCK $'grep x f # \'\ngit push origin \':x\' # \''
+check $BLOCK $'echo a # "\ngit push origin \':x\' # "'
+check $BLOCK $'echo $\'\\\'\' ; git push origin \':x\' ; echo $\'\\\'\''
+# 一覧に無い実行手段 (別のシェル、ssh、parallel、検索ツール自身の実行オプション) に渡る引用符の中身も空にしない
+check $BLOCK "echo 'git push origin :x' | ksh"
+check $BLOCK "echo 'git push origin :x' | fish"
+check $BLOCK "echo 'git push origin :x' | csh"
+check $BLOCK "echo 'git push origin :x' | tcsh"
+check $BLOCK "echo 'git push origin :x' | ssh localhost"
+check $BLOCK "echo 'git push origin :x' | parallel"
+check $BLOCK "echo 'git push origin :x' | \$SHELL"
+check $BLOCK "echo 'git push origin :x' | awk '{system(\$0)}'"
+check $BLOCK "rg --pre 'git push origin :x' y ."
+check $BLOCK "ag --pager 'git push origin :x' y"
+# オプション名は、シェルが渡す引用符を外した後の語で判定する。引用符で書いた --pre、略称 (ag の --pag)、隣接する引用符も通さない
+check $BLOCK "rg --p'r'e \"git push origin :x\" foo"
+check $BLOCK "rg --p\"r\"e \"git push origin :x\" foo"
+check $BLOCK "rg --h'ostname-bin' \"git push origin :x\" foo"
+check $BLOCK "rg \"x\" '--pre' 'git push origin :x'"
+check $BLOCK "rg -e \"x\" \"--pre\" 'git push origin :x' ."
+check $BLOCK "ag --pag \"git push origin :x\" foo"
+check $BLOCK "ag --pa \"git push origin :x\" foo"
+check $BLOCK "ag --p \"git push origin :x\" foo"
+check $BLOCK "ag --pa\"ger\" \"git push origin :x\" foo"
+check $BLOCK "grep --include=x \"git push origin :x\" f"
+check $ALLOW 'rg -n -i "git push origin :x" .'
+check $ALLOW 'grep -rn "git push origin :x" .'
 # cd / GIT_DIR で別のリポジトリに移ってからの push は、移った先のブランチで判定する
 check $BLOCK 'cd ../repo_main && git push'
 check $BLOCK 'cd ../repo_main && git push origin HEAD'

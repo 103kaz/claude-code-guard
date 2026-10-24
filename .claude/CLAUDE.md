@@ -17,6 +17,7 @@ bash tests/test-verify.sh
 bash tests/test-check-deps.sh
 bash tests/test-check-enabled.sh
 bash tests/test-chain.sh
+bash tests/test-defaults.sh
 ```
 
 ## PR

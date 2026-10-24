@@ -41,7 +41,10 @@ claude-code-guard/
 │   ├── test-verify.sh
 │   ├── test-check-deps.sh
 │   ├── test-check-enabled.sh
-│   └── test-chain.sh
+│   ├── test-chain.sh
+│   ├── test-defaults.sh
+│   ├── manual-check-onfailure.sh
+│   └── manual-check-multiple.sh
 ├── docs/
 │   └── spec.md
 ├── .github/workflows/
@@ -72,7 +75,7 @@ claude-code-guard/
 
 block を `permissionDecision: "deny"` ではなく exit 2 にするのは、フックが壊れたときに止める側へ倒すためだ。公式ドキュメント (hooks の「Exit code 2」「PreToolUse decision control」) によると、PreToolUse で exit 2 にすると、stderr が deny の理由と同じ経路で Claude に届く。一方 deny は exit 0 で JSON を出す形なので、JSON が壊れるとフックの失敗 (non-blocking error) になり、ツールは実行される。exit 2 は、stdout の JSON が壊れていても止まる。ファイルのツール (Read など) の block も exit 2 にそろえる。
 
-Claude Code 2.1.295 以降には、フックの `onFailure: "block"` がある。フックが起動できない、時間切れ、0 と 2 以外の終了コードのときに、操作を止める設定だ。ガードのフックにはこれを付け、動作を確かめた最低の版を README に書く (手元の 2.1.293 にはまだ無く、試していない)。
+Claude Code 2.1.295 以降には、フックの `onFailure: "block"` がある。フックが起動できない、時間切れ、0 と 2 以外の終了コードのときに、操作を止める設定だ。ガードのフックにはこれを付け、動作を確かめた最低の版を README に書く (2026-10-24 に 2.1.306 で `tests/manual-check-onfailure.sh` により確かめた。exit 1、時間切れ、起動できない (exit 127) のどれでも止まり、`onFailure` なしの exit 1 は止まらない。2.1.295 から 2.1.305 は試していない)。
 
 block の理由には、Claude が回避策を探さず、人間が実行するコマンドをユーザーに示すよう書き添える。
 
@@ -103,6 +106,8 @@ jq が無いとフックの入力を読めない。そのときは、そのフ�
 | マシンの設定 | | `sudo`、`launchctl` の登録、`crontab` (`-l` を除く)、`defaults write` / `delete` |
 
 コミットメッセージや PR 本文 (`-m`、`--body`、heredoc の本文) に書いただけの文字列は判定から除く。`bash -c` や `eval`、python などを含むコマンドでは除かない。ダブルクォートの値と引用符の無い heredoc の本文のうち、`$(...)` やバッククォートを含むものは実行されるので除かない。
+
+`git push` の refspec の規則 (`:` で始まる、`:` だけ、ワイルドカード、ブレース展開と `$@` / `$*`) は、引用符を外した文字列で判定する。このため、文字を探すだけ、表示するだけのコマンド (`grep -n "git push *" f`) が push に読めてしまう。検索語や表示文字列を push と読まないため、**許可リスト**で空にする (`lib/blank-printed.pl`)。コマンド全体が、`grep` / `egrep` / `fgrep` / `rg` / `ag` / `echo` / `printf` / `head` / `tail` / `wc` / `ls` / `cat` の区間を `&&` `||` `;` `|` でつないだものだけで、どの引数も、ふつうの語 (英数字と `_ . / : = , @ % + -`) か、`$`・バッククォート・エスケープ (`\` と、直後が `$` `` ` `` `"` `\` 改行の組) を含まない引用符の文字列であるときに限り、引用符の中の文字列を空にしてから判定する。それ以外は、前と同じ文字列で判定する。`-` で始まる語は、シェルが渡す語 (引用符を外した後。`--p'r'e` は `--pre`) で見て、引用符のない短いオプションの連なり (`-n`、`-rn`、`-e`) だけを認める。`rg` の `--pre` `--pre-glob` `--hostname-bin` や `ag` の `--pager` はプログラムを実行し、`ag` は略称 (`--pa`、`--p`) も効くので、オプション名の拒否リストでなく、長いオプションと引用符で書いたオプションを一律に認めない形にした。具体的には、`$(...)`、バッククォート、`<(...)` `>(...)`、`#`、`$'...'`、改行、単独の `&`、リダイレクト、ワイルドカード、長いオプションと引用符で書いたオプション、一覧に無いコマンド (別のシェル、`ssh`、`parallel`、`awk`、`xargs` など) を含むコマンドは、空にしない。拒否リストでなく許可リストにしたのは、一覧に無い実行手段に引用符の中身が渡って、止めるべき push が通るのを防ぐため。引用符の無い言及 (`echo git push *`) は、前と同じく判定する。シェルが標準入力からプログラムを読む形 (`| bash`、`| sh -s`、`| bash -`、`| bash /dev/stdin`、`| sudo bash`、`| source /dev/stdin`、`bash <<< "..."`、`bash < <(...)`。シェルの前にオプション、リダイレクト、括弧、`VAR=x`、`env` / `time` / `xargs` などのラッパー、引用符で書いた名前があってもよい) は、引用符の中の文字列が実行されるので、git の規則を読む前に、引用符の中の文字列を 1 つずつ行として足し、引用符を外したコマンド全体も足す (`\n` は改行にする。判定は `lib/stdin-shell.pl`)。スクリプトや `-c`、`-n` を渡したシェル (`| bash script.sh`) と、表示するだけのパイプ (`| tee x`、`| cat`) は足さない。
 
 ### ファイルのツールのガード
 
@@ -187,7 +192,7 @@ Glob はファイル名を返すだけなので対象にしない。
 
 `userConfig` の型は `string`、`number`、`boolean`、`directory`、`file` の 5 つで、配列は `string` に `multiple: true` を付けて表す。`multiple` の項目は `/config` の一覧に出ないので、`/plugin` の設定の画面から変える。
 
-フックは値を環境変数 `CLAUDE_PLUGIN_OPTION_<KEY>` (`<KEY>` は大文字) で受け取る。値が読めないときや不正なときは既定値を使う。
+フックは値を環境変数 `CLAUDE_PLUGIN_OPTION_<KEY>` (`<KEY>` は大文字) で受け取る。値が読めないときや不正なときは既定値を使う。`multiple` の項目は、値をカンマでつないだ 1 つの文字列 (`main,release/*`) で入る。設定していない `multiple` の項目は変数そのものが無く (`plugin.json` の `default` は渡されない。`boolean` など他の型は確かめていない)、空の一覧は空文字になる。どちらもフックの側の既定値 (`protected_branches` なら `main` と `master`) を使う。このため、`default` を変えるときは、フックの側の既定値も同じにする (`multiple` について 2.1.306 で確かめた)。
 
 値は `pluginConfigs` に入る。公式ドキュメント (settings の `pluginConfigs`) によると、読まれるのはユーザーと managed の settings だけで、プロジェクトとローカルの settings に書いても無視される (クローンしたリポジトリから値を差し込めないようにするため)。守るブランチなどをプロジェクトごとに変えることはできないので、v1 の「対象外」のままにする。
 
@@ -223,6 +228,9 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | 依存の確認 | `tests/test-check-deps.sh` |
 | 無効化の警告 | `tests/test-check-enabled.sh` |
 | 連結の検知 | `tests/test-chain.sh` |
+| 設定の既定の一致 | `tests/test-defaults.sh` (plugin.json の default と、設定が無いときのフックの動作が同じか) |
+| onFailure の実機確認 | `tests/manual-check-onfailure.sh` (ログイン済みの claude が要る。手で流し、CI では流さない) |
+| multiple の設定の形の確認 | `tests/manual-check-multiple.sh` (ログイン済みの claude が要る。手で流し、CI では流さない) |
 | マニフェスト | `claude plugin validate --strict` |
 | CI | GitHub Actions。PR では ubuntu、main への push では ubuntu と macOS。macOS は `/bin/bash` (3.2) で流す。public リポジトリなので無料 |
 
@@ -248,19 +256,19 @@ README の先頭近くに書く。
 
 ## 決めていないこと
 
-確かめて決めたもの (2026-10-15、Claude Code 2.1.293):
+確かめて決めたもの (日付と版を書いていない項目は、2026-10-15、Claude Code 2.1.293 で確かめた):
 
 - マーケットプレイスの名前は `claude-code-guard` (「配布」)。
 - `pluginConfigs` はプロジェクトの settings から読まれない (「設定」)。
 - block は exit 2 で返す (「判定の種類」)。
+- フックの `onFailure: "block"` は、2.1.306 で止まることを確かめた (2026-10-24、`tests/manual-check-onfailure.sh`)。古い版ではこのキーが無視され、終了コードの動作になる。
+- `multiple` の項目は、カンマでつないだ 1 つの文字列で渡る (2.1.306、`tests/manual-check-multiple.sh`)。「設定」の節に詳細を書いた。
 - メッセージの文面は下の「メッセージの案」。block の 2 行目は候補 1 にした。
 
 まだ決めていないもの:
 
 - `permissionDecision: "deny"` の画面の表示。exit 2 の表示はこの環境で見た (`PreToolUse:Bash hook error: [<コマンド>]: <stderr>`。「hook error」と出る)。deny を返すテスト用のプラグインを `claude -p --plugin-dir` で動かそうとしたが、`claude -p` の認証が切れていて (`OAuth session expired`) 動かせなかった。どちらで止めるかは exit 2 に決めたので、残るのは表示の違いを README に書くかどうかだけだ。
-- `multiple` の項目が `CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES` にどういう形 (JSON の配列か、区切り文字か) で入るか。ドキュメントに書かれておらず、上と同じ理由で試せていない。実装の最初に確かめる。
 - マーケットプレイスの名前は `claude plugin validate --strict` を通した。公開時の登録で弾かれるかは未確認。
-- フックの `onFailure: "block"` は 2.1.295 以降の機能で、開発に使った 2.1.293 では実機で確かめていない。古い版ではこのキーが無視され、終了コードの動作になる。
 - Read への deny と、フックの exit 2 で、画面の表示や Claude に届く文面がどう違うか。どちらで止めるかは exit 2 に決めてあり、違いは未確認。
 - リポジトリの settings の `enabledPlugins` でこのプラグインが無効にされている場合の扱い。無効だとこのプラグインのフックは一つも動かないので、プラグイン自身では知らせられない。「保証しないこと」に書くほか、プラグインの外に置く `scripts/check-enabled.sh` で警告できるようにした (上の「設定」の節)。managed settings など別の場所での無効化は見ない。
 

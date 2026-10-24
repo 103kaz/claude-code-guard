@@ -43,7 +43,7 @@ Each decision is one of: **block** (exit 2, cannot be approved), **ask** (a conf
 
 Protected branches are judged by branch name, not by whether the repository is a throwaway. A push to `main` in a scratch repository is blocked too, unless it is a first push (no force, no remote-tracking branch yet) to a reachable, empty remote; that one asks. To test pushing, use a work branch.
 
-Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar. A `$(...)` or backtick inside a double-quoted value or an unquoted heredoc runs, so it is judged.
+Text that only appears in a commit message or PR body (`-m`, `--body`, heredoc) is not judged, unless the command also contains `bash -c`, `eval`, python and similar. A `$(...)` or backtick inside a double-quoted value or an unquoted heredoc runs, so it is judged. The `git push` refspec rules (`:`, a lone `:`, wildcards, brace expansion) judge the text with its quotes stripped, so a command that only searches for or prints such text (`grep -n "git push *" f`) would read like a push. When the whole command is made of `grep`, `egrep`, `fgrep`, `rg`, `ag`, `echo`, `printf`, `head`, `tail`, `wc`, `ls` and `cat` segments joined by `&&`, `||`, `;` and `|`, and every argument is a plain word or a quoted string without `$`, a backtick or a backslash before `$`, a backtick, `"` or `\`, its quoted strings are not read. A word that starts with a dash (an option) must be an unquoted cluster of short options such as `-n` or `-rn`: long options and quoted ones are not accepted, because some options of `rg` and `ag` run a program (`--pre`, `--pager`, their abbreviations, or `--p'r'e`, which the shell turns into `--pre`). Any other command, including one with `$(...)`, `<(...)`, a `#`, a newline, a redirect, an option that runs a program (`--pre`, `--pager`) or any other command, is judged as before. An unquoted mention (`echo git push *`) is still judged. When a shell reads its program from standard input (`echo "git push origin main" | bash`, `| sh -s`, `| source /dev/stdin`, `bash <<< "..."`), the quoted strings are run, so the git rules read them as command lines.
 
 ### File tools (`guard-file.sh`)
 
@@ -163,7 +163,7 @@ Checked with Claude Code 2.1.293 and the settings above: both test scripts pass,
 
 ## Tested versions
 
-Developed against Claude Code 2.1.293. The hooks set `onFailure: "block"`, which Claude Code 2.1.295 and later support; it has not been verified on a real session yet. Older versions ignore the key and fall back to the exit-code behaviour.
+Developed against Claude Code 2.1.293. The hooks set `onFailure: "block"`, which Claude Code 2.1.295 and later support. It was checked on 2.1.306 with `tests/manual-check-onfailure.sh`: a PreToolUse hook that exits 1, times out or cannot run stops the tool call, and an exit 1 without the key does not. 2.1.295 to 2.1.305 were not tried. Older versions ignore the key and fall back to the exit-code behaviour.
 
 ## Development
 
@@ -173,6 +173,9 @@ bash tests/test-verify.sh   # verify loop
 bash tests/test-check-deps.sh  # dependency check at session start
 bash tests/test-check-enabled.sh  # warning for a project that switches the plugin off
 bash tests/test-chain.sh  # command chained to a sandbox-excluded command
+bash tests/test-defaults.sh  # plugin.json defaults match the hooks' defaults
+bash tests/manual-check-onfailure.sh  # needs a logged-in claude: checks that onFailure "block" stops a tool call (not run by CI)
+bash tests/manual-check-multiple.sh  # needs a logged-in claude: shows the shape a multiple option reaches a hook in (not run by CI)
 ```
 
 When you change a guard decision, add cases to `tests/test-guard.sh` first.
