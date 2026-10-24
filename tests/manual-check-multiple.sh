@@ -1,7 +1,9 @@
 #!/bin/bash
 # Manual check, not run by CI: in what shape does Claude Code pass a userConfig option with "multiple": true to a hook?
-# scripts/lib/common.sh reads CLAUDE_PLUGIN_OPTION_PROTECTED_BRANCHES as a JSON array or as a comma / space separated list.
-# This script prints the value a hook actually receives, so that the real shape can be written down.
+# Checked on Claude Code 2.1.306: the values arrive as one string joined by commas (main,release/*), an option that is not set
+# has no variable, and an empty list is an empty string. scripts/lib/common.sh reads these, and also a JSON array and a
+# space separated list. This script prints the value a hook actually receives, so the shape can be checked again after
+# a Claude Code update.
 # It runs `claude -p` against a throwaway plugin, so it needs a logged-in claude, network access and a few short model calls.
 # Run it from a terminal, not from inside a sandboxed session.
 #   bash tests/manual-check-multiple.sh
