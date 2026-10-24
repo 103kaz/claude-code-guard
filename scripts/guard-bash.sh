@@ -365,9 +365,17 @@ fi
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]](--no-v[a-z]*|--mi[a-z]*|--de[a-z]*|--pru[a-z]*|--all?|-[A-Za-z]*d[A-Za-z]*)([^[:alnum:]-]|$)" <<<"$cmd_msg"; then
   block "git push --no-verify / --mirror / --delete (-d) / --prune / --all is not allowed"
 fi
+# Stripping the quotes below would turn grep -n "git push *" f into grep -n git push * f, which reads like a push. When the whole
+# command is only searches and prints (an allow-list: lib/blank-printed.pl), the quoted strings are emptied first. Any other
+# command keeps its text, so nothing that was stopped before is let through. A failed run keeps the command as it is
+cmd_scan="$cmd_msg"
+if grep -Eq "${P}(grep|egrep|fgrep|rg|ag|echo|printf)[[:space:]]" <<<"$cmd_msg"; then
+  cmd_scan="$(perl "${BASH_SOURCE[0]%/*}/lib/blank-printed.pl" <<<"$cmd_msg" 2>/dev/null)" || cmd_scan="$cmd_msg"
+  [ -n "$cmd_scan" ] || cmd_scan="$cmd_msg"
+fi
 # For refspec matching: drop -o / --push-option values and strip quotes and backslashes ("":feat/x becomes :feat/x after shell expansion)
 # Also strip the leading $ of $'...' and $"..." ($':feat/y' becomes :feat/y)
-cmd_refspec="$(sed -E "s/(^|[[:space:]])(-o|--push-option)([[:space:]]+|=)(\"[^\"]*\"|'[^']*'|[^[:space:]]+)//g; s/\\\$([\"'])/\\1/g; s/[\"'\\\\]//g" <<<"$cmd_msg")"
+cmd_refspec="$(sed -E "s/(^|[[:space:]])(-o|--push-option)([[:space:]]+|=)(\"[^\"]*\"|'[^']*'|[^[:space:]]+)//g; s/\\\$([\"'])/\\1/g; s/[\"'\\\\]//g" <<<"$cmd_scan")"
 # ANSI-C escapes ($'\x3afeat/y') cannot be resolved from the string, so stop them
 if grep -Eq "${GIT_PUSH}([^|;&]*)[[:space:]]\\\$'[^']*\\\\" <<<"$cmd_msg"; then
   block "escapes inside git push $'...' (\\x3a etc.) are not allowed because the refspec cannot be checked"

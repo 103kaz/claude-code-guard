@@ -1432,6 +1432,70 @@ check $ALLOW 'git push origin "feat/*"'
 check $ALLOW 'git push origin feature-*'
 check $ALLOW "git push origin 'refs/tags/*'"
 check $ALLOW 'git push origin feat/x && echo :done'
+# grep / rg / echo / printf が検索語や表示文字列として引用符の中に持つだけの push は、push ではない (refspec の規則に当てない)
+check $ALLOW 'grep -n "git push *" README.md'
+check $ALLOW "grep -n 'git push *' README.md"
+check $ALLOW 'grep -n "git push *" a.md && ls'
+check $ALLOW 'grep -n "git push *" a.md | head -3'
+check $ALLOW 'echo "git push *"'
+check $ALLOW 'rg -n "git push origin :feat/x" .'
+check $ALLOW 'echo "git push origin :"'
+check $ALLOW 'printf "%s\n" "git push origin +:"'
+check $ALLOW 'grep "git push origin ma{in,}" f'
+check $ALLOW 'grep -e "git push origin refs/heads/*:refs/heads/*" f'
+check $ALLOW 'cat f | grep "git push *"'
+# 引用符の外の push、別の区切りの後の push、実行される引用符 ($( ) と bash -c)、インタプリタや xargs を含むコマンドは、これまでどおり止める
+check $BLOCK 'git push *'
+check $BLOCK 'git push origin "*"'
+check $BLOCK 'echo "a" && git push origin "*"'
+check $BLOCK 'grep foo f; git push origin :x'
+check $BLOCK 'printf x ; git push origin :x'
+check $BLOCK 'echo "$(git push origin :main)"'
+check $BLOCK 'grep foo "$(git push origin :main)" f'
+check $BLOCK 'grep x f $(git push origin :main)'
+check $BLOCK 'grep x f `git push origin :main`'
+check $BLOCK 'ssh h "git push origin :x"'
+check $BLOCK 'bash -c "git push origin :x"'
+check $BLOCK 'sh -c "grep x f; git push origin :x"'
+check $BLOCK 'eval "git push origin :x"'
+check $BLOCK 'grep -n "git push *" f | bash'
+check $BLOCK 'grep -n "git push *" f | sh -s'
+check $BLOCK 'python3 -c "import os; os.system(\"git push origin :x\")"'
+check $BLOCK 'git push origin "*" # grep "x" f'
+# 引用符でない $( ) / バッククォート / >( ) の中の push は、先頭語が grep や echo でも空にしない
+check $BLOCK "grep x f \$(git push origin ':x')"
+check $BLOCK "echo \$(git push origin ':x')"
+check $BLOCK "grep x f >(git push origin ':x')"
+check $BLOCK "grep x f \`git push origin ':x'\`"
+# コメントの中の引用符や $'\'' で字句解析がずれても、次の行の push を引用符の中と誤認しない
+check $BLOCK $'echo a # \'\ngit push origin \':x\' # \''
+check $BLOCK $'grep x f # \'\ngit push origin \':x\' # \''
+check $BLOCK $'echo a # "\ngit push origin \':x\' # "'
+check $BLOCK $'echo $\'\\\'\' ; git push origin \':x\' ; echo $\'\\\'\''
+# 一覧に無い実行手段 (別のシェル、ssh、parallel、検索ツール自身の実行オプション) に渡る引用符の中身も空にしない
+check $BLOCK "echo 'git push origin :x' | ksh"
+check $BLOCK "echo 'git push origin :x' | fish"
+check $BLOCK "echo 'git push origin :x' | csh"
+check $BLOCK "echo 'git push origin :x' | tcsh"
+check $BLOCK "echo 'git push origin :x' | ssh localhost"
+check $BLOCK "echo 'git push origin :x' | parallel"
+check $BLOCK "echo 'git push origin :x' | \$SHELL"
+check $BLOCK "echo 'git push origin :x' | awk '{system(\$0)}'"
+check $BLOCK "rg --pre 'git push origin :x' y ."
+check $BLOCK "ag --pager 'git push origin :x' y"
+# オプション名は、シェルが渡す引用符を外した後の語で判定する。引用符で書いた --pre、略称 (ag の --pag)、隣接する引用符も通さない
+check $BLOCK "rg --p'r'e \"git push origin :x\" foo"
+check $BLOCK "rg --p\"r\"e \"git push origin :x\" foo"
+check $BLOCK "rg --h'ostname-bin' \"git push origin :x\" foo"
+check $BLOCK "rg \"x\" '--pre' 'git push origin :x'"
+check $BLOCK "rg -e \"x\" \"--pre\" 'git push origin :x' ."
+check $BLOCK "ag --pag \"git push origin :x\" foo"
+check $BLOCK "ag --pa \"git push origin :x\" foo"
+check $BLOCK "ag --p \"git push origin :x\" foo"
+check $BLOCK "ag --pa\"ger\" \"git push origin :x\" foo"
+check $BLOCK "grep --include=x \"git push origin :x\" f"
+check $ALLOW 'rg -n -i "git push origin :x" .'
+check $ALLOW 'grep -rn "git push origin :x" .'
 # cd / GIT_DIR で別のリポジトリに移ってからの push は、移った先のブランチで判定する
 check $BLOCK 'cd ../repo_main && git push'
 check $BLOCK 'cd ../repo_main && git push origin HEAD'
