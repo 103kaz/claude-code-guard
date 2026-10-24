@@ -22,5 +22,6 @@ bash tests/test-defaults.sh
 
 ## PR
 - 変更はブランチを切って PR にする。main へ直接 push しない (空のリモートへの初回 push だけ例外)。
+- main へ直接 PR を出さない。版ごとに `release-<版>` ブランチを作り (例: `release-0.5.2`)、feature ブランチの PR は release ブランチ向けにする。main へは、release ブランチの PR でまとめて取り込む。版上げ (plugin.json、CHANGELOG の見出し) は release ブランチで行い、マージ後に main へタグを付ける。
 - タイトルと本文は日本語、`feat:` `fix:` などのプレフィックスを付ける。
 - PR を作る前に、ブランチの差分の変更行に含まれる文書の主張を、実装と 1 つずつ照らして確かめる。食い違いを直したら確かめ直す。専用のスキルは同梱していないので、手元にあるスキルか手作業で行う。
