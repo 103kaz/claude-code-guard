@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `onFailure: "block"` was checked on Claude Code 2.1.306: a PreToolUse hook that exits 1, times out or cannot run stops the tool call, and an exit 1 without the key does not. The check is `tests/manual-check-onfailure.sh` (needs a logged-in `claude`; not run by CI). The README and the spec now say so.
 - Checked on Claude Code 2.1.306 that a `multiple` userConfig option reaches a hook as one string with the values joined by commas (`main,release/*`), that an option that is not set has no variable (the `default` in `plugin.json` is not passed) and that an empty list is an empty string. The hook reads all of these correctly, so the code is unchanged; tests for the real shape are added, and the spec records it. The check is `tests/manual-check-multiple.sh` (needs a logged-in `claude`; not run by CI).
 
 ## 0.5.0 (2026-10-23)

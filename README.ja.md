@@ -163,7 +163,7 @@ Claude Code 2.1.293 と上の設定で確かめました。2 つのテストス�
 
 ## 動作を確かめた版
 
-Claude Code 2.1.293 で開発しています。フックには `onFailure: "block"` を付けています。これは 2.1.295 以降の機能で、実機ではまだ確かめていません。古い版ではこのキーが無視され、終了コードによる動作になります。
+Claude Code 2.1.293 で開発しています。フックには `onFailure: "block"` を付けています。これは 2.1.295 以降の機能で、2.1.306 で `tests/manual-check-onfailure.sh` により確かめました。PreToolUse のフックが exit 1 になる、時間切れになる、起動できないときは、ツールの呼び出しが止まります。キーが無い exit 1 は止まりません。2.1.295 から 2.1.305 は試していません。古い版ではこのキーが無視され、終了コードによる動作になります。
 
 ## 開発
 
@@ -173,6 +173,7 @@ bash tests/test-verify.sh   # 検証ループ
 bash tests/test-check-deps.sh  # セッション開始時の依存の確認
 bash tests/test-check-enabled.sh  # プロジェクトがプラグインを外すときの警告
 bash tests/test-chain.sh  # サンドボックスの除外コマンドへの連結
+bash tests/manual-check-onfailure.sh  # ログイン済みの claude が要る: onFailure "block" がツールの呼び出しを止めるかの確認 (CI では流さない)
 bash tests/manual-check-multiple.sh  # ログイン済みの claude が要る: multiple の設定がフックに渡る形の確認 (CI では流さない)
 ```
 

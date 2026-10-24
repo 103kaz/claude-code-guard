@@ -42,6 +42,7 @@ claude-code-guard/
 │   ├── test-check-deps.sh
 │   ├── test-check-enabled.sh
 │   ├── test-chain.sh
+│   ├── manual-check-onfailure.sh
 │   └── manual-check-multiple.sh
 ├── docs/
 │   └── spec.md
@@ -73,7 +74,7 @@ claude-code-guard/
 
 block を `permissionDecision: "deny"` ではなく exit 2 にするのは、フックが壊れたときに止める側へ倒すためだ。公式ドキュメント (hooks の「Exit code 2」「PreToolUse decision control」) によると、PreToolUse で exit 2 にすると、stderr が deny の理由と同じ経路で Claude に届く。一方 deny は exit 0 で JSON を出す形なので、JSON が壊れるとフックの失敗 (non-blocking error) になり、ツールは実行される。exit 2 は、stdout の JSON が壊れていても止まる。ファイルのツール (Read など) の block も exit 2 にそろえる。
 
-Claude Code 2.1.295 以降には、フックの `onFailure: "block"` がある。フックが起動できない、時間切れ、0 と 2 以外の終了コードのときに、操作を止める設定だ。ガードのフックにはこれを付け、動作を確かめた最低の版を README に書く (手元の 2.1.293 にはまだ無く、試していない)。
+Claude Code 2.1.295 以降には、フックの `onFailure: "block"` がある。フックが起動できない、時間切れ、0 と 2 以外の終了コードのときに、操作を止める設定だ。ガードのフックにはこれを付け、動作を確かめた最低の版を README に書く (2026-10-24 に 2.1.306 で `tests/manual-check-onfailure.sh` により確かめた。exit 1、時間切れ、起動できない (exit 127) のどれでも止まり、`onFailure` なしの exit 1 は止まらない。2.1.295 から 2.1.305 は試していない)。
 
 block の理由には、Claude が回避策を探さず、人間が実行するコマンドをユーザーに示すよう書き添える。
 
@@ -224,6 +225,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | 依存の確認 | `tests/test-check-deps.sh` |
 | 無効化の警告 | `tests/test-check-enabled.sh` |
 | 連結の検知 | `tests/test-chain.sh` |
+| onFailure の実機確認 | `tests/manual-check-onfailure.sh` (ログイン済みの claude が要る。手で流し、CI では流さない) |
 | multiple の設定の形の確認 | `tests/manual-check-multiple.sh` (ログイン済みの claude が要る。手で流し、CI では流さない) |
 | マニフェスト | `claude plugin validate --strict` |
 | CI | GitHub Actions。PR では ubuntu、main への push では ubuntu と macOS。macOS は `/bin/bash` (3.2) で流す。public リポジトリなので無料 |
@@ -255,6 +257,7 @@ README の先頭近くに書く。
 - マーケットプレイスの名前は `claude-code-guard` (「配布」)。
 - `pluginConfigs` はプロジェクトの settings から読まれない (「設定」)。
 - block は exit 2 で返す (「判定の種類」)。
+- フックの `onFailure: "block"` は、2.1.306 で止まることを確かめた (2026-10-24、`tests/manual-check-onfailure.sh`)。古い版ではこのキーが無視され、終了コードの動作になる。
 - `multiple` の項目は、カンマでつないだ 1 つの文字列で渡る (2.1.306、`tests/manual-check-multiple.sh`)。「設定」の節に詳細を書いた。
 - メッセージの文面は下の「メッセージの案」。block の 2 行目は候補 1 にした。
 
@@ -262,7 +265,6 @@ README の先頭近くに書く。
 
 - `permissionDecision: "deny"` の画面の表示。exit 2 の表示はこの環境で見た (`PreToolUse:Bash hook error: [<コマンド>]: <stderr>`。「hook error」と出る)。deny を返すテスト用のプラグインを `claude -p --plugin-dir` で動かそうとしたが、`claude -p` の認証が切れていて (`OAuth session expired`) 動かせなかった。どちらで止めるかは exit 2 に決めたので、残るのは表示の違いを README に書くかどうかだけだ。
 - マーケットプレイスの名前は `claude plugin validate --strict` を通した。公開時の登録で弾かれるかは未確認。
-- フックの `onFailure: "block"` は 2.1.295 以降の機能で、開発に使った 2.1.293 では実機で確かめていない。古い版ではこのキーが無視され、終了コードの動作になる。
 - Read への deny と、フックの exit 2 で、画面の表示や Claude に届く文面がどう違うか。どちらで止めるかは exit 2 に決めてあり、違いは未確認。
 - リポジトリの settings の `enabledPlugins` でこのプラグインが無効にされている場合の扱い。無効だとこのプラグインのフックは一つも動かないので、プラグイン自身では知らせられない。「保証しないこと」に書くほか、プラグインの外に置く `scripts/check-enabled.sh` で警告できるようにした (上の「設定」の節)。managed settings など別の場所での無効化は見ない。
 
