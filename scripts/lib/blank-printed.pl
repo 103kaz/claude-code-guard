@@ -22,8 +22,10 @@ my $sq   = qr/'[^']*'/;
 my $dq   = qr/"(?:[^"\\\$`]|\\[^\$`"\\\n])*"/;
 my $ws   = qr/[ \t]+/;
 
-# Options that make these tools run a program of their own
-sub runs_program { return $_[0] =~ /\A--(?:pre|pre-glob|hostname-bin|pager|exec)(?:\z|=)/ ? 1 : 0; }
+# The word the shell passes is the argument without its quotes (--p'r'e is --pre). A word that starts with a dash is an option,
+# and some options of these tools run a program (rg --pre, ag --pager, and abbreviations such as ag --pa), so the only option
+# allowed is a plain, unquoted cluster of short options (-n, -rn, -e). Everything else that starts with a dash is not eligible.
+sub option_ok { my ($raw, $actual) = @_; return 1 unless $actual =~ /\A-/; return $raw =~ /\A-[A-Za-z0-9]+\z/ ? 1 : 0; }
 
 my $out = '';
 my $pos = 0;
@@ -46,15 +48,16 @@ while (1) {
     # an argument is one or more adjacent pieces: plain words and quoted strings
     my $arg = '';
     my $raw = '';
+    my $actual = '';
     my $got = 0;
     while (1) {
-      if    ($c =~ /\G($sq)/gc)   { $raw .= $1; $arg .= "''"; $got = 1; }
-      elsif ($c =~ /\G($dq)/gc)   { $raw .= $1; $arg .= '""'; $got = 1; }
-      elsif ($c =~ /\G($word)/gc) { $raw .= $1; $arg .= $1;   $got = 1; }
+      if    ($c =~ /\G($sq)/gc)   { $raw .= $1; $actual .= substr($1, 1, -1); $arg .= "''"; $got = 1; }
+      elsif ($c =~ /\G($dq)/gc)   { $raw .= $1; $actual .= substr($1, 1, -1); $arg .= '""'; $got = 1; }
+      elsif ($c =~ /\G($word)/gc) { $raw .= $1; $actual .= $1; $arg .= $1; $got = 1; }
       else { last; }
     }
     if (!$got) { pos($c) = pos($c) - length($sp); last; }   # whitespace before a separator or the end
-    fail() if runs_program($raw);
+    fail() unless option_ok($raw, $actual);
     $out .= $sp . $arg;
   }
   # trailing whitespace, then a separator or the end

@@ -1483,6 +1483,19 @@ check $BLOCK "echo 'git push origin :x' | \$SHELL"
 check $BLOCK "echo 'git push origin :x' | awk '{system(\$0)}'"
 check $BLOCK "rg --pre 'git push origin :x' y ."
 check $BLOCK "ag --pager 'git push origin :x' y"
+# オプション名は、シェルが渡す引用符を外した後の語で判定する。引用符で書いた --pre、略称 (ag の --pag)、隣接する引用符も通さない
+check $BLOCK "rg --p'r'e \"git push origin :x\" foo"
+check $BLOCK "rg --p\"r\"e \"git push origin :x\" foo"
+check $BLOCK "rg --h'ostname-bin' \"git push origin :x\" foo"
+check $BLOCK "rg \"x\" '--pre' 'git push origin :x'"
+check $BLOCK "rg -e \"x\" \"--pre\" 'git push origin :x' ."
+check $BLOCK "ag --pag \"git push origin :x\" foo"
+check $BLOCK "ag --pa \"git push origin :x\" foo"
+check $BLOCK "ag --p \"git push origin :x\" foo"
+check $BLOCK "ag --pa\"ger\" \"git push origin :x\" foo"
+check $BLOCK "grep --include=x \"git push origin :x\" f"
+check $ALLOW 'rg -n -i "git push origin :x" .'
+check $ALLOW 'grep -rn "git push origin :x" .'
 # cd / GIT_DIR で別のリポジトリに移ってからの push は、移った先のブランチで判定する
 check $BLOCK 'cd ../repo_main && git push'
 check $BLOCK 'cd ../repo_main && git push origin HEAD'
