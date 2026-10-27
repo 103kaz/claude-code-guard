@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2 (2026-10-27)
+
+- Docs: the README and `README.ja.md` have the sections "Using it alone" and "With code-loops". They say that the verify loop skips `verify.sh` until you approve it, that code-loops' `/code-loops:review-loop` leaves verification to this verify loop when code-guard is enabled, how code-loops' pre-push hook and the guards meet on the same `git push`, and that settings are stored per plugin id (not tried on a running Claude Code). The intro links to code-loops, where the review loop and the docs check went in 0.3.0. No behaviour change.
+- Docs: the review checklist has an item on shell programs read from standard input, and `.claude/CLAUDE.md` says that pull requests go to a `release-<version>` branch and that main takes the release branch as a whole.
+
 ## 0.5.1 (2026-10-24)
 
 - Fixed: a command that only searches for or prints text no longer reads as a push. `grep -n "git push *" README.md` and `echo "git push origin :"` were blocked by the refspec rules (a wildcard, `:`, a lone `:`, brace expansion), because those rules judge the text with its quotes stripped. When the whole command is made of `grep`, `egrep`, `fgrep`, `rg`, `ag`, `echo`, `printf`, `head`, `tail`, `wc`, `ls` and `cat` segments joined by `&&`, `||`, `;` and `|`, with plain words or quoted strings (no `$`, backtick or backslash before `$`, a backtick, `"` or `\`) as arguments, the quoted strings are emptied before the rules look at them (`scripts/lib/blank-printed.pl`). It is an allow-list: a word that starts with a dash must be an unquoted cluster of short options (`-n`, `-rn`), because `rg --pre` and `ag --pager` (and their abbreviations or a quoted spelling such as `--p'r'e`) run a program. Any other command, including one with `$(...)`, `<(...)`, a `#`, a newline, a redirect, a long or quoted option or a command not on the list, is judged exactly as before. An unquoted mention (`echo git push *`) is still judged. Every push that was stopped before is still stopped.
