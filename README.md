@@ -2,7 +2,7 @@
 
 [日本語](README.ja.md)
 
-A Claude Code plugin that builds a harness into your project. The harness is hooks that stop dangerous operations. A verify loop runs your project's checks before Claude finishes a turn, and `/code-guard:setup-verify` creates the script it runs. The review loop and the docs check were removed in 0.3.0.
+A Claude Code plugin that builds a harness into your project. The harness is hooks that stop dangerous operations. A verify loop runs your project's checks before Claude finishes a turn, and `/code-guard:setup-verify` creates the script it runs. The review loop and the docs check were removed in 0.3.0; [code-loops](https://github.com/103kaz/claude-code-loops) has `/code-loops:review-loop` and `/code-loops:doc-code-consistency`.
 
 ## What it does not guarantee
 
@@ -12,6 +12,18 @@ A Claude Code plugin that builds a harness into your project. The harness is hoo
 - The verify loop makes Claude fix failures. It is not enforcement: a turn can still end without running `verify.sh`.
 - The hook input format and the plugin mechanism can change between Claude Code versions. See [Tested versions](#tested-versions).
 - A repository can switch the plugin off: `enabledPlugins` in the project's `.claude/settings.json` overrides the user's settings. Claude's own edits to those files are stopped (asked or blocked), but a setting that arrived with a cloned repository is not. The plugin cannot detect this itself (a switched-off plugin runs no hooks); see [When a repository switches the plugin off](#when-a-repository-switches-the-plugin-off).
+
+## Using it alone
+
+- There is no review loop and no reminder before a push. A push that passes the guards is not asked to be reviewed; for that, add [code-loops](https://github.com/103kaz/claude-code-loops).
+- The verify loop runs `.claude/verify.sh` only after you approved its content (see [Verify loop](#verify-loop)). Until then the script is skipped, and you are told once per session. A turn can end with nothing verified, so check for that notice.
+- The verify loop runs only at the end of a turn in which files changed.
+
+## With code-loops
+
+- When code-guard is enabled, `/code-loops:review-loop` does not run `.claude/verify.sh` itself. It leaves verification to the verify loop (it tells that code-guard is enabled by whether `/code-guard:setup-verify` is available). So approve `verify.sh` once before the first review, and note that a review that changes no file ends a turn without running it.
+- code-loops registers a hook on `git push`, next to the guards here. It blocks the first push of each commit and lets the retry through once the review loop has run in the session (code-loops 0.3.2 and later). The guards decide independently: a push to a protected branch is still blocked, and `confirm_push` still asks. If either blocks, the push does not run.
+- To install both together, see [claude-code-workflow](https://github.com/103kaz/claude-code-workflow). Settings are stored per plugin id, so installed from that marketplace the id is `code-guard@claude-code-workflow`; set them again in the `/plugin` screen.
 
 ## Install
 
