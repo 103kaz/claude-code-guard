@@ -21,19 +21,21 @@ The plugin is installed at user scope: it applies to every project on this machi
 In your shell:
 
 ```bash
-claude plugin marketplace add 103kaz/claude-code-guard
+claude plugin marketplace add https://github.com/103kaz/claude-code-guard.git
 claude plugin install code-guard@claude-code-guard
 ```
+
+The https URL keeps the install from using an SSH key (the `103kaz/claude-code-guard` shorthand clones over SSH when a key is configured).
 
 The second command prints `Successfully installed plugin: code-guard@claude-code-guard (scope: user)`. It also prints that some `userConfig` options are not set yet. Every option has a default, so you can ignore this; see [Settings](#settings).
 
 Start a new session (`claude`) after installing. A session that was already open does not have the plugin; `/reload-plugins` loads it into that session.
 
-You can also run the same steps inside a `claude` session: `/plugin marketplace add 103kaz/claude-code-guard`, then `/plugin install code-guard@claude-code-guard`. The install command opens the plugin's details; choose **Install for you (user scope)**.
+You can also run the same steps inside a `claude` session: `/plugin marketplace add https://github.com/103kaz/claude-code-guard.git`, then `/plugin install code-guard@claude-code-guard`. The install command opens the plugin's details; choose **Install for you (user scope)**.
 
 ### Desktop app
 
-The marketplace has to be added first, and the desktop app's plugin browser lists only marketplaces that are already added. Add it once with the terminal command above (`claude plugin marketplace add 103kaz/claude-code-guard`).
+The marketplace has to be added first, and the desktop app's plugin browser lists only marketplaces that are already added. Add it once with the terminal command above (`claude plugin marketplace add https://github.com/103kaz/claude-code-guard.git`).
 
 Then, in a local or SSH session in the **Code** tab:
 
@@ -77,7 +79,7 @@ Or choose **Uninstall** in the plugin's details in `/plugin`.
 
 | Symptom | Cause and fix |
 |---|---|
-| `claude plugin install` fails because the marketplace is unknown | Add it first: `claude plugin marketplace add 103kaz/claude-code-guard` |
+| `claude plugin install` fails because the marketplace is unknown | Add it first: `claude plugin marketplace add https://github.com/103kaz/claude-code-guard.git` |
 | `/code-guard:...` is an unknown skill, or the guards do not stop anything | The session was opened before the install. Start a new session |
 | Everything a guard covers is blocked and the message names `jq` or `perl` | Install the missing tool (`brew install jq` on macOS) |
 | A project turned the plugin off | See [When a repository switches the plugin off](../README.md#when-a-repository-switches-the-plugin-off) |
