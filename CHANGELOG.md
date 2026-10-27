@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3 (2026-10-27)
+
+- Docs: the install commands add the marketplace over its https URL (`https://github.com/103kaz/claude-code-guard.git`) instead of the `103kaz/claude-code-guard` shorthand, which clones over SSH when a key is configured. No behaviour change.
+
 ## 0.5.2 (2026-10-27)
 
 - Docs: the README and `README.ja.md` have the sections "Using it alone" and "With code-loops". They say that the verify loop skips `verify.sh` until you approve it, that code-loops' `/code-loops:review-loop` leaves verification to this verify loop when code-guard is enabled, how code-loops' pre-push hook and the guards meet on the same `git push`, and that settings are stored per plugin id (not tried on a running Claude Code). The intro links to code-loops, where the review loop and the docs check went in 0.3.0. No behaviour change.
