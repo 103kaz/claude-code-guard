@@ -22,7 +22,7 @@ A Claude Code plugin that builds a harness into your project. The harness is hoo
 ## With code-loops
 
 - When code-guard is enabled, `/code-loops:review-loop` does not run `.claude/verify.sh` itself. It leaves verification to the verify loop (it tells that code-guard is enabled by whether `/code-guard:setup-verify` is available). So approve `verify.sh` once before the first review, and note that a review that changes no file ends a turn without running it.
-- code-loops registers a hook on `git push`, next to the guards here. It blocks the first push of each commit and lets the retry through once the review loop has run in the session (code-loops 0.3.2 and later). The guards decide independently: a push to a protected branch is still blocked, and `confirm_push` still asks. If either blocks, the push does not run.
+- code-loops registers a hook on `git push`, next to the guards here. It blocks the first push of each commit and lets the retry through once the review loop has run after the block (code-loops 0.3.2 and later). The guards decide independently: a push to a protected branch is still blocked, and `confirm_push` still asks. If either blocks, the push does not run.
 - To install both together, see [claude-code-workflow](https://github.com/103kaz/claude-code-workflow). Settings are stored per plugin id, so installed from that marketplace the id is `code-guard@claude-code-workflow`; set them again in the `/plugin` screen.
 
 ## Install

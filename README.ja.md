@@ -22,7 +22,7 @@ Claude Code にハーネスを組み込むプラグインです。ハーネス�
 ## code-loops と使うとき
 
 - code-guard が有効だと、`/code-loops:review-loop` は `.claude/verify.sh` を自分では実行しません。検証は検証ループに任せます (code-guard が有効かは、`/code-guard:setup-verify` が使えるかで判断します)。最初のレビューの前に `verify.sh` を一度承認してください。ファイルを変えないレビューでは、そのターンに `verify.sh` が走りません。
-- code-loops は、ここのガードと並べて `git push` にフックを登録します。各コミットの最初の push を止め、そのセッションでレビューのループが走ったあとの再試行を通します (code-loops 0.3.2 以降)。ガードの判定は別です。保護ブランチへの push は止まり、`confirm_push` は確認を出します。どちらかが止めれば、push は実行されません。
+- code-loops は、ここのガードと並べて `git push` にフックを登録します。各コミットの最初の push を止め、止めたあとにレビューのループが走ったときの再試行を通します (code-loops 0.3.2 以降)。ガードの判定は別です。保護ブランチへの push は止まり、`confirm_push` は確認を出します。どちらかが止めれば、push は実行されません。
 - 両方を一度に入れるには [claude-code-workflow](https://github.com/103kaz/claude-code-workflow) を使います。設定はプラグインの ID ごとに保存されます。そのマーケットプレイスから入れると ID が `code-guard@claude-code-workflow` になるので、`/plugin` の画面で設定し直してください。
 
 ## 導入
