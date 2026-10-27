@@ -30,7 +30,7 @@ Claude Code にハーネスを組み込むプラグインです。ハーネス�
 ターミナルとデスクトップ版それぞれの手順、入ったことの確かめ方、設定、更新、削除は [docs/setup.ja.md](docs/setup.ja.md) にあります。要点だけ書くと、シェルで次を実行し、新しくセッションを始めます。
 
 ```bash
-claude plugin marketplace add 103kaz/claude-code-guard
+claude plugin marketplace add https://github.com/103kaz/claude-code-guard.git
 claude plugin install code-guard@claude-code-guard
 ```
 

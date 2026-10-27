@@ -21,19 +21,21 @@ user スコープで入れます。このマシンのすべてのプロジェク
 シェルで次を実行します。
 
 ```bash
-claude plugin marketplace add 103kaz/claude-code-guard
+claude plugin marketplace add https://github.com/103kaz/claude-code-guard.git
 claude plugin install code-guard@claude-code-guard
 ```
+
+https の URL にしているのは、SSH の鍵を使わずに入れるためです。`103kaz/claude-code-guard` という短い書き方は、SSH の鍵が設定されていると SSH で clone します。
 
 2 つ目のコマンドは `Successfully installed plugin: code-guard@claude-code-guard (scope: user)` と表示します。あわせて、`userConfig` の一部が未設定だと表示しますが、全項目に既定値があるので無視して構いません。[設定](#設定)を見てください。
 
 入れたあとは、新しくセッション (`claude`) を始めてください。すでに開いていたセッションには入っていません。そのセッションに読み込むときは `/reload-plugins` を使います。
 
-`claude` を起動した中で同じことをする方法もあります。`/plugin marketplace add 103kaz/claude-code-guard`、続けて `/plugin install code-guard@claude-code-guard` です。install は、プラグインの詳細を開くので、**Install for you (user scope)** を選びます。
+`claude` を起動した中で同じことをする方法もあります。`/plugin marketplace add https://github.com/103kaz/claude-code-guard.git`、続けて `/plugin install code-guard@claude-code-guard` です。install は、プラグインの詳細を開くので、**Install for you (user scope)** を選びます。
 
 ### デスクトップ版
 
-先にマーケットプレイスを追加しておく必要があります。デスクトップ版のプラグインの一覧には、追加済みのマーケットプレイスのものしか出ません。上のターミナルのコマンド (`claude plugin marketplace add 103kaz/claude-code-guard`) で、一度だけ追加してください。
+先にマーケットプレイスを追加しておく必要があります。デスクトップ版のプラグインの一覧には、追加済みのマーケットプレイスのものしか出ません。上のターミナルのコマンド (`claude plugin marketplace add https://github.com/103kaz/claude-code-guard.git`) で、一度だけ追加してください。
 
 そのあと、**Code** タブのローカルまたは SSH のセッションで次の手順をします。
 
@@ -77,7 +79,7 @@ claude plugin uninstall code-guard@claude-code-guard
 
 | 症状 | 原因と対処 |
 |---|---|
-| `claude plugin install` が、マーケットプレイスが不明だと失敗する | 先に追加します。`claude plugin marketplace add 103kaz/claude-code-guard` |
+| `claude plugin install` が、マーケットプレイスが不明だと失敗する | 先に追加します。`claude plugin marketplace add https://github.com/103kaz/claude-code-guard.git` |
 | `/code-guard:...` が不明なスキルと言われる、ガードが何も止めない | 入れる前に開いたセッションです。新しくセッションを始めます |
 | ガードが受け持つ操作がすべて止まり、メッセージに `jq` か `perl` とある | 足りないものを入れます (macOS なら `brew install jq`) |
 | プロジェクトがプラグインを外している | [リポジトリがプラグインを外すとき](../README.ja.md#リポジトリがプラグインを外すとき) を見ます |

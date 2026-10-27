@@ -207,7 +207,7 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 リポジトリ自体をマーケットプレイスにする。
 
 ```bash
-/plugin marketplace add 103kaz/claude-code-guard
+/plugin marketplace add https://github.com/103kaz/claude-code-guard.git
 /plugin install code-guard@claude-code-guard
 ```
 

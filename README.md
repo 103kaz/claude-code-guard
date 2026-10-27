@@ -30,7 +30,7 @@ A Claude Code plugin that builds a harness into your project. The harness is hoo
 See [docs/setup.md](docs/setup.md) for the terminal and the desktop app, how to check the install, settings, update and uninstall. In short, run these in your shell, then start a new session:
 
 ```bash
-claude plugin marketplace add 103kaz/claude-code-guard
+claude plugin marketplace add https://github.com/103kaz/claude-code-guard.git
 claude plugin install code-guard@claude-code-guard
 ```
 
