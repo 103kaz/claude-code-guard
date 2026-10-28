@@ -252,8 +252,20 @@ if [[ "$cmd_nr" == *cd* || "$cmd_nr" == *pushd* ]]; then
   print $out' <<<"$cmd_nr" 2>/dev/null)"
 fi
 # // and /./ in a path are one /, and dir/.. is dropped (~/.claude//settings.json, .git/./hooks, ~/./.gitconfig);
-# a URL scheme (https://) is left alone
-cmd_home="$(sed -E -e ':a' -e 's#([^:/])//+#\1/#g; s#/\./#/#g; s#(^|[[:space:]=<>])\./#\1#g; s#(^|[[:space:]=<>/])([^/.[:space:]][^/[:space:]]*|\.[^/.[:space:]][^/[:space:]]*)/\.\./#\1#; ta' -e 's#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.gitconfig([^[:alnum:]_.-]|$)#HOMEGITCONFIG\2#g' <<<"$cmd_nr${cmd_cd:+$'\n'$cmd_cd}" \
+# a URL scheme (https://) is left alone. The CLAUDE_CONFIG_DIR directory is read as ~/.claude: as written and its real path,
+# under HOME also as ~/x, $HOME/x and ${HOME}/x, escaped for the regex, letters in either case (macOS volumes are usually
+# case-insensitive), only at the start of a path, quoted or not. A spelled-out $CLAUDE_CONFIG_DIR (also ${...:-default})
+# counts even when the variable is not set
+cfg_re='\$CLAUDE_CONFIG_DIR|\$\{CLAUDE_CONFIG_DIR(:?[-=?+][^}]*)?\}'
+if cfgs="$(claude_config_dirs)"; then
+  cfg_re="$cfg_re|$(CG_HOME="$HOME" perl -ne 'chomp;
+    sub esc { my $s = shift; $s =~ s/([][\\.*^\$+?(){}|#])/\\$1/g; $s =~ s/([A-Za-z])/"[".lc($1).uc($1)."]"/ge; $s }
+    push @r, esc($_);
+    push @r, "(~|\\\$HOME|\\\$\\{HOME\\})/" . esc(substr($_, length($ENV{CG_HOME}) + 1))
+      if $ENV{CG_HOME} ne "/" && index($_, "$ENV{CG_HOME}/") == 0;
+    END { print join("|", @r) }' <<<"$cfgs")"
+fi
+cmd_home="$(sed -E -e ':a' -e 's#([^:/])//+#\1/#g; s#/\./#/#g; s#(^|[[:space:]=<>])\./#\1#g; s#(^|[[:space:]=<>/])([^/.[:space:]][^/[:space:]]*|\.[^/.[:space:]][^/[:space:]]*)/\.\./#\1#; ta' -e 's#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g; s#(^|[^[:alnum:]_./~-])["'"'"']?('"$cfg_re"')["'"'"']?/#\1HOMECLAUDE/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.gitconfig([^[:alnum:]_.-]|$)#HOMEGITCONFIG\2#g' <<<"$cmd_nr${cmd_cd:+$'\n'$cmd_cd}" \
   | awk "$HEREDOC_AWK" \
   | sed -e ':a' -e '/\\$/N; s/\\\n//; ta' \
   | awk '{ gsub(/&&|\|\|/, "\n"); print }')"
@@ -293,7 +305,7 @@ while IFS= read -r seg; do
     # verify-trust holds the user's approvals of verify.sh (scripts/lib/verify-trust.sh); the path is often spelled through $CLAUDE_PLUGIN_DATA
     if grep -Eq 'HOMECLAUDE/(hooks|settings|plugins)|\.claude/settings|\.githooks|\.git/(config|hooks)|\.git/modules/[^[:space:]]*/(config|hooks)|HOMEGITCONFIG|\.config/git/config' <<<"$seg_t" \
        || grep -Eq "/verify-trust([/\"'[:space:];&|]|$)|(^|[[:space:]\"'=<>])verify-trust/" <<<"$seg_t"; then
-      block "changing the harness (~/.claude hooks / settings / plugins, .claude/settings*, .githooks, .git/config, .git/hooks, ~/.gitconfig, ~/.config/git/config) through Bash is not allowed (chmod +x alone is fine)"
+      block "changing the harness (~/.claude or CLAUDE_CONFIG_DIR hooks / settings / plugins, .claude/settings*, .githooks, .git/config, .git/hooks, ~/.gitconfig, ~/.config/git/config) through Bash is not allowed (chmod +x alone is fine)"
     elif grep -Eq '\.claude/(hooks|verify\.sh)' <<<"$seg_t"; then
       add_ask "changing .claude/hooks / .claude/verify.sh: confirm the user has OKed this change in chat before approving"
     elif grep -Eq '\.github/workflows' <<<"$seg_t"; then

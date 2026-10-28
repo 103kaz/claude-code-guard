@@ -48,7 +48,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 | push の形 | `--no-verify`、`--mirror`、`--delete` / `-d` / `:ref`、`--prune`、`--all` | force push (`+ref` も)、`confirm_push` が有効なときの作業ブランチへの push |
 | フックの回避 | `core.hooksPath`、`git -c`、`--config-env`、`GIT_CONFIG_*`、alias と include の設定、core / alias / include のセクションの削除、`HOME=` / `XDG_CONFIG_HOME=` を変えた git、`~/.gitconfig` / `~/.config/git/config` の書き換え、commit / merge の `--no-verify` (`commit -n`) | |
 | 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、git の資格情報 (`~/.git-credentials`、`git credential fill`)、キーチェーンの値。`<`、`rev:`、`--opt=` の後の名前 (terraform の `-var-file=` は除く) と、展開するとこれらになるグロブやブレース (`.en?`、`.e{n,x}v`) も。名前は大文字小文字を区別しない (`.ENV`) | 文字列を組み立てるコマンド置換 (`cat $(printf .e%snv)`) |
-| ハーネス | `~/.claude` の settings・フック・プラグイン、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` (`.git/modules/` の下のサブモジュールも) の Bash での書き換え。書き換えに数えるのは、リダイレクト、`sed` / `perl` / `ruby -i`、`awk -i inplace`、ファイルのコマンド、`dd`、`rsync`、`curl -o`、`wget -O`、`git checkout` / `restore` / `apply` / `am`。`cd` の後の相対パスも。保護パスは書き込み先だけで見るので、`cp ~/.claude/settings.json .` のようなコピー元の読み出しは止めません | `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
+| ハーネス | `~/.claude` の settings・フック・プラグイン (`CLAUDE_CONFIG_DIR` があればその下も)、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` (`.git/modules/` の下のサブモジュールも) の Bash での書き換え。書き換えに数えるのは、リダイレクト、`sed` / `perl` / `ruby -i`、`awk -i inplace`、ファイルのコマンド、`dd`、`rsync`、`curl -o`、`wget -O`、`git checkout` / `restore` / `apply` / `am`。`cd` の後の相対パスも。保護パスは書き込み先だけで見るので、`cp ~/.claude/settings.json .` のようなコピー元の読み出しは止めません | `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
 | 取得したコードの実行 | `curl` / `wget` の出力を、シェル (`/bin/sh`、`env bash` など。パイプの何段後でも) やインタプリタ (`python3`、`perl`、`node` など。curl のすぐ次の段か、後ろの段で標準入力からプログラムを読む形) に渡すパイプ | プロセス置換、`bash -c "$(curl ...)"`、`eval` |
 | 消す操作 | ルートやホームへの `rm -r` (`--` や長いオプションの後も) | ビルドの生成物でないディレクトリの `rm -r`、`git clean`、`reset --hard`、`restore`、`checkout [<rev>] --`、`stash drop`、`branch -D`、`xargs rm`、`find -delete` / `-exec rm` |
 | マシンの設定 | | `sudo`、`launchctl` の登録、`crontab`、`defaults write` |
@@ -64,7 +64,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 | ツール | block | ask |
 |---|---|---|
 | Read、Grep | 機密値のファイル (中核の機密値と同じパターン) | |
-| Edit、Write、MultiEdit、NotebookEdit | `*.tfvars`、`.git/config`、`.git/hooks`、`~/.gitconfig`、`~/.config/git/config` | `~/.claude`、`.claude/settings*`、`.claude/hooks`、`.claude/verify.sh`、`.githooks`、`.github/workflows` |
+| Edit、Write、MultiEdit、NotebookEdit | `*.tfvars`、`.git/config`、`.git/hooks`、`~/.gitconfig`、`~/.config/git/config` | `~/.claude`、`CLAUDE_CONFIG_DIR` があればその下、`.claude/settings*`、`.claude/hooks`、`.claude/verify.sh`、`.githooks`、`.github/workflows` |
 
 ### MCP ツール (`guard-mcp.sh`)
 
@@ -72,7 +72,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 ### サンドボックスの除外コマンドへの連結 (`guard-chain.sh`)
 
-サンドボックスが有効なとき、`sandbox.excludedCommands` に載るコマンドがサンドボックスの外で動くのは、コマンド全体がそれ 1 つのときだけです。`&&`、`||`、`;`、`|`、改行でつなぐとサンドボックスの中で動き、失敗します (`.git` への git の書き込み、`gh` の呼び出し)。このガードは `~/.claude/settings.json`、`.claude/settings.json`、`.claude/settings.local.json` から `sandbox.enabled` と `sandbox.excludedCommands` を読み、そのような連結を block して、1 コマンドずつ別の呼び出しにするよう返します。引用符の中、`2>&1` などのリダイレクト、heredoc の本文は区切りに数えません。パターンは 1 つのセグメント全体に照合し、末尾の空白とアスタリスク (`git push *`) や `:*` は、引数のないコマンドにも一致します。`git` のように 1 語だけのパターンは、その語だけのコマンドに一致します。最後まで読めないコマンド (閉じていない引用符) は通します。見落とす形は、`$(...)` や `bash -c "..."` の中の連結、環境変数の接頭辞 (`FOO=1 git push && ls`)、サブシェル、`if ...; then ...; fi` です。サンドボックスが無効なとき、パターンが無いとき、設定を読めないときは何もしません。使いやすさのための補助で、セキュリティのガードではなく、外す設定もありません。
+サンドボックスが有効なとき、`sandbox.excludedCommands` に載るコマンドがサンドボックスの外で動くのは、コマンド全体がそれ 1 つのときだけです。`&&`、`||`、`;`、`|`、改行でつなぐとサンドボックスの中で動き、失敗します (`.git` への git の書き込み、`gh` の呼び出し)。このガードは `~/.claude/settings.json` (`CLAUDE_CONFIG_DIR` があれば `$CLAUDE_CONFIG_DIR/settings.json`)、`.claude/settings.json`、`.claude/settings.local.json` から `sandbox.enabled` と `sandbox.excludedCommands` を読み、そのような連結を block して、1 コマンドずつ別の呼び出しにするよう返します。引用符の中、`2>&1` などのリダイレクト、heredoc の本文は区切りに数えません。パターンは 1 つのセグメント全体に照合し、末尾の空白とアスタリスク (`git push *`) や `:*` は、引数のないコマンドにも一致します。`git` のように 1 語だけのパターンは、その語だけのコマンドに一致します。最後まで読めないコマンド (閉じていない引用符) は通します。見落とす形は、`$(...)` や `bash -c "..."` の中の連結、環境変数の接頭辞 (`FOO=1 git push && ls`)、サブシェル、`if ...; then ...; fi` です。サンドボックスが無効なとき、パターンが無いとき、設定を読めないときは何もしません。使いやすさのための補助で、セキュリティのガードではなく、外す設定もありません。
 
 ### パック
 
@@ -97,7 +97,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 bash <プラグインのディレクトリ>/scripts/trust-verify.sh [プロジェクトのディレクトリ]
 ```
 
-ファイルの全体 (制御文字は見える形にして。日本語のコメントなど、表示できる UTF-8 はそのまま) と SHA-256 を表示し、`yes` と打ったときだけ承認します。承認はプロジェクトのディレクトリごとに `~/.claude/code-guard/verify-trust/` の下へ残り、ファイルを変えると外れます。シンボリックリンクの `verify.sh` は承認しません。Claude が `trust-verify.sh` (や承認のコード) を実行しようとすると Bash のガードが ask にし、Bash から承認のファイルを書くのは block なので、Claude が自分で `yes` と答えても、あなたの確認が要ります。ask は補助で、実行時に組み立てた名前は通ります。承認が及ぶのは `verify.sh` 自身で、それが呼ぶファイル (`make`、`npm test`、`bash scripts/ci.sh`) には及びません。
+ファイルの全体 (制御文字は見える形にして。日本語のコメントなど、表示できる UTF-8 はそのまま) と SHA-256 を表示し、`yes` と打ったときだけ承認します。承認はプロジェクトのディレクトリごとに `~/.claude/code-guard/verify-trust/` の下へ残り (`CLAUDE_CONFIG_DIR` があっても同じ)、ファイルを変えると外れます。シンボリックリンクの `verify.sh` は承認しません。Claude が `trust-verify.sh` (や承認のコード) を実行しようとすると Bash のガードが ask にし、Bash から承認のファイルを書くのは block なので、Claude が自分で `yes` と答えても、あなたの確認が要ります。ask は補助で、実行時に組み立てた名前は通ります。承認が及ぶのは `verify.sh` 自身で、それが呼ぶファイル (`make`、`npm test`、`bash scripts/ci.sh`) には及びません。
 
 `/code-guard:setup-verify` で雛形を作れます。ビルドの設定を見て速い lint とテストを提案し、同意を得てから書きます。
 

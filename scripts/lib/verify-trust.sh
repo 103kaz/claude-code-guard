@@ -3,7 +3,8 @@
 # A verify.sh from a cloned repository is code someone else wrote, so the verify loop runs it only while its content
 # matches what the user approved with scripts/trust-verify.sh. The record is kept per project directory.
 # The place is under $HOME, not under CLAUDE_PLUGIN_DATA: the hook has that variable and the user's terminal does not,
-# so a place that depends on it would be written in one directory and read in another.
+# so a place that depends on it would be written in one directory and read in another. CLAUDE_CONFIG_DIR is not used for the
+# same reason: the terminal where the user approves may not have it.
 # It sits under ~/.claude, so Claude's writes there are already stopped (Bash: block, file tools: ask).
 
 verify_trust_dir() { printf '%s' "${HOME:-/nonexistent-home}/.claude/code-guard/verify-trust"; }

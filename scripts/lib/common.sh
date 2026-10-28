@@ -4,6 +4,27 @@
 # set -u hooks must not die on an unset HOME (exit 1 is a non-blocking error)
 HOME="${HOME:-/nonexistent-home}"
 
+# norm_path <path>: ~ expanded, // and /./ folded, dir/.. dropped (~//.netrc and ~/x/../.netrc are ~/.netrc). Symlinks are not resolved
+norm_path() {
+  sed -E -e ':a' -e 's#/\./#/#g; s#//+#/#g; s#/[^/]+/\.\./#/#; ta' <<<"${1/#\~/$HOME}"
+}
+
+# claude_config_dirs: the directory CLAUDE_CONFIG_DIR moves the user's settings and plugins to, one per line: as written
+# (absolute, normalized, no trailing /) and, when it exists and differs, its real path (a symlink; /tmp is /private/tmp on
+# macOS). Fails when the variable is not set. ~/.claude is protected whether or not it is set.
+claude_config_dirs() {
+  local d="${CLAUDE_CONFIG_DIR:-}" r
+  [ -n "$d" ] || return 1
+  # shellcheck disable=SC2088 # a literal ~ (a value from a settings env block is not expanded by a shell)
+  case "$d" in /*|'~'|'~/'*) ;; *) d="$PWD/$d" ;; esac
+  d="$(norm_path "$d")"
+  d="${d%/}"
+  [ -n "$d" ] || return 1
+  printf '%s\n' "$d"
+  if r="$(cd -P "$d" 2>/dev/null && pwd -P)" && [ "$r" != "$d" ]; then printf '%s\n' "$r"; fi
+  return 0
+}
+
 # need_cmd <command>...: if any command is missing, block everything this hook covers (when unsure, stop).
 need_cmd() {
   local c

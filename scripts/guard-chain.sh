@@ -16,10 +16,14 @@ case "$cmd" in
   *) exit 0 ;;
 esac
 
-HOME="${HOME:-/nonexistent-home}"
+# shellcheck source=lib/common.sh
+. "${BASH_SOURCE[0]%/*}/lib/common.sh" 2>/dev/null || exit 0
 proj="${CLAUDE_PROJECT_DIR:-.}"
+# The user's settings are where Claude Code reads them: under CLAUDE_CONFIG_DIR when it is set
+user_dir="$HOME/.claude"
+if d="$(claude_config_dirs)"; then user_dir="${d%%$'\n'*}"; fi
 files=()
-for f in "$HOME/.claude/settings.json" "$proj/.claude/settings.json" "$proj/.claude/settings.local.json"; do
+for f in "$user_dir/settings.json" "$proj/.claude/settings.json" "$proj/.claude/settings.local.json"; do
   [ -f "$f" ] && files+=("$f")
 done
 [ "${#files[@]}" -gt 0 ] || exit 0

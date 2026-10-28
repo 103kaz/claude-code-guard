@@ -2,6 +2,7 @@
 # Regression test for scripts/guard-chain.sh (a command chained to a sandbox-excluded command). Run it after changing the check.
 set -uo pipefail
 hook="$(cd "$(dirname "$0")/../scripts" && pwd)/guard-chain.sh"
+unset CLAUDE_CONFIG_DIR
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/test-chain.XXXXXX")" || exit 1
 trap 'rm -rf "$tmp"' EXIT
@@ -103,6 +104,30 @@ check 2 'git add -A && ls'
 settings '{"sandbox":{"enabled":true}}' '{"sandbox":{"excludedCommands":["terraform plan *"]}}'
 check 2 'cd infra && terraform plan -out=x'
 check 0 'terraform plan -out=x'
+
+# CLAUDE_CONFIG_DIR: the user's settings are read from there, not from ~/.claude
+cfg="$tmp/cfg"
+mkdir -p "$cfg"
+printf '%s' "$ON" > "$cfg/settings.json"
+settings '{}'
+n=$((n + 1))
+jq -nc '{tool_name:"Bash",tool_input:{command:"git add -A && git commit -m x"}}' \
+  | HOME="$home" CLAUDE_CONFIG_DIR="$cfg" CLAUDE_PROJECT_DIR="$proj" bash "$hook" >/dev/null 2>&1
+[ $? = 2 ] || ng "settings under CLAUDE_CONFIG_DIR were not read"
+settings "$ON"
+printf '{}' > "$cfg/settings.json"
+n=$((n + 1))
+jq -nc '{tool_name:"Bash",tool_input:{command:"git add -A && git commit -m x"}}' \
+  | HOME="$home" CLAUDE_CONFIG_DIR="$cfg" CLAUDE_PROJECT_DIR="$proj" bash "$hook" >/dev/null 2>&1
+[ $? = 0 ] || ng "~/.claude/settings.json was read although CLAUDE_CONFIG_DIR is set"
+# A value with ~ (set in a settings env block, not expanded by a shell) is read under HOME
+mkdir -p "$home/cfg2"
+printf '%s' "$ON" > "$home/cfg2/settings.json"
+settings '{}'
+n=$((n + 1))
+jq -nc '{tool_name:"Bash",tool_input:{command:"git add -A && git commit -m x"}}' \
+  | HOME="$home" CLAUDE_CONFIG_DIR='~/cfg2' CLAUDE_PROJECT_DIR="$proj" bash "$hook" >/dev/null 2>&1
+[ $? = 2 ] || ng "a CLAUDE_CONFIG_DIR with ~ was not read under HOME"
 
 # Broken settings and broken input never block
 settings 'not json'
