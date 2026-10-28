@@ -22,10 +22,26 @@ path="$(jq -er '.tool_input.file_path // .tool_input.notebook_path // .tool_inpu
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 # Normalize ~, // and /./ and dir/.. and lower-case so the patterns see one form (~//.netrc and ~/x/../.netrc are ~/.netrc)
-path="${path/#\~/$HOME}"
-path="$(sed -E -e ':a' -e 's#/\./#/#g; s#//+#/#g; s#/[^/]+/\.\./#/#; ta' <<<"$path")"
+path="$(norm_path "$path")"
 path_l="$(lower "$path")"
 home_l="$(lower "$HOME")"
+
+# under_cfg <lower-cased path>: the path is in the CLAUDE_CONFIG_DIR directory. The path is also tried with its directory
+# resolved, so a symlinked spelling of the same directory counts
+cfg_l=""
+if cfg="$(claude_config_dirs)"; then cfg_l="$(lower "$cfg")"; fi
+under_cfg() {
+  local p c
+  [ -n "$cfg_l" ] || return 1
+  for p in "$1" ${2:+"$2"}; do
+    while IFS= read -r c; do
+      [[ "$p" == "$c/"* ]] && return 0
+    done <<<"$cfg_l"
+  done
+  return 1
+}
+path_real_l=""
+if [ -n "$cfg_l" ] && real="$(cd -P "$(dirname "$path")" 2>/dev/null && pwd -P)"; then path_real_l="$(lower "$real/${path##*/}")"; fi
 
 is_secret() {
   local p="$1" f
@@ -52,7 +68,7 @@ case "$tool" in
     if [ "$path_l" = "$home_l/.gitconfig" ] || grep -Eq '(^|/)\.config/git/config$' <<<"$path_l"; then
       block "editing the global git config ($path) is not allowed (it can set aliases, includes and core.hooksPath)"
     fi
-    if [[ "$path_l" == "$home_l/.claude/"* ]] \
+    if [[ "$path_l" == "$home_l/.claude/"* ]] || under_cfg "$path_l" "$path_real_l" \
        || grep -Eq '(^|/)\.claude/(settings[^/]*|hooks/.*|verify\.sh)$|(^|/)\.githooks/|(^|/)\.github/workflows/' <<<"$path_l"; then
       ask "editing $path (harness or CI file). Confirm the user has OKed this change in chat before approving"
     fi
