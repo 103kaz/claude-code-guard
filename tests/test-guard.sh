@@ -5,6 +5,8 @@ cd "$(dirname "$0")"
 SCRIPTS="$(cd ../scripts && pwd)"
 # Most push cases below are about the push rules themselves; confirm_push has its own cases at the end
 export CLAUDE_PLUGIN_OPTION_CONFIRM_PUSH=false
+# The config directory cases set this themselves
+unset CLAUDE_CONFIG_DIR
 
 fail=0
 n=0
@@ -1230,6 +1232,63 @@ check_file $BLOCK Read '/work/app/.ENV'
 check_file $BLOCK Read '/work/certs/server.PEM'
 check_file $BLOCK Edit '/work/.GIT/config'
 check_file $ASK   Edit '/work/.Claude/settings.json'
+
+# CLAUDE_CONFIG_DIR moves the user's settings and plugins out of ~/.claude: that directory is protected as ~/.claude is,
+# and ~/.claude stays protected too
+CFG="$TMPROOT/cfg.d"
+mkdir -p "$CFG/hooks"
+ln -s "$CFG" "$TMPROOT/cfg.link"
+export CLAUDE_CONFIG_DIR="$CFG"
+check_file $ASK   Edit "$CFG/settings.json"
+check_file $ASK   Write "$CFG/hooks/x.sh"
+check_file $ASK   Edit "$CFG//settings.json"
+check_file $ASK   Edit "$HOME/.claude/settings.json"
+check_file $ALLOW Edit "$TMPROOT/cfg.dx/settings.json"
+check $BLOCK "cp /tmp/x $CFG/settings.json"
+check $BLOCK "echo x > $CFG/hooks/guard-bash.sh"
+check $BLOCK 'cp /tmp/x $CLAUDE_CONFIG_DIR/settings.json'
+check $BLOCK 'cp /tmp/x "${CLAUDE_CONFIG_DIR}/plugins/x"'
+check $BLOCK 'cp /tmp/x ~/.claude/settings.json'
+check $ALLOW "cp $CFG/settings.json /tmp/x"
+check $ALLOW "cp /tmp/x $TMPROOT/cfg.dx/settings.json"
+# The directory in another case (case-insensitive volumes), after cd, and as a symlink; not in the middle of another path
+check $BLOCK "cp /tmp/x $TMPROOT/CFG.D/settings.json"
+check $BLOCK "cd $CFG && echo x > settings.json"
+check_file $ASK   Edit "$TMPROOT/cfg.link/settings.json"
+check $ALLOW "cp /tmp/x /backup$CFG/settings.json"
+export CLAUDE_CONFIG_DIR="$TMPROOT/cfg.link"
+CFG_REAL="$(cd -P "$CFG" && pwd -P)"
+check_file $ASK   Edit "$CFG_REAL/settings.json"
+check $BLOCK "cp /tmp/x $CFG_REAL/settings.json"
+check $BLOCK "cp /tmp/x $TMPROOT/cfg.link/settings.json"
+export CLAUDE_CONFIG_DIR="$CFG/"
+check_file $ASK   Edit "$CFG/settings.json"
+check $BLOCK "cp /tmp/x $CFG/settings.json"
+# Quoted and defaulted spellings of the variable, and a quoted path followed by /
+check $BLOCK 'cp /tmp/x "$CLAUDE_CONFIG_DIR"/settings.json'
+check $BLOCK 'echo x > ${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json'
+check $BLOCK 'echo x > "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"'
+check $BLOCK "echo x > \"$CFG\"/settings.json"
+# A subdirectory that does not exist yet, through the symlink
+check_file $ASK   Write "$TMPROOT/cfg.link/agents/new.md"
+export CLAUDE_CONFIG_DIR="$TMPROOT/cfg.link"
+check_file $ASK   Write "$CFG/agents/new.md"
+# A config directory under HOME, written from HOME (~, $HOME, cd ~)
+HCFG="$HOME/.code-guard-test-cfg"
+export CLAUDE_CONFIG_DIR="$HCFG"
+check $BLOCK 'cp /tmp/x ~/.code-guard-test-cfg/settings.json'
+check $BLOCK 'cp /tmp/x $HOME/.code-guard-test-cfg/settings.json'
+check $BLOCK 'cp /tmp/x "${HOME}/.code-guard-test-cfg/hooks/x"'
+check $BLOCK 'cd ~ && cp /tmp/x .code-guard-test-cfg/settings.json'
+check $BLOCK 'cd ~/.code-guard-test-cfg && cp /tmp/x hooks/x'
+check $ALLOW 'cp /tmp/x ~/.code-guard-test-cfgx/settings.json'
+export CLAUDE_CONFIG_DIR='~/.code-guard-test-cfg'
+check $BLOCK 'echo x > ~/.code-guard-test-cfg/settings.json'
+check_file $ASK   Write "$HCFG/settings.json"
+# A spelled-out $CLAUDE_CONFIG_DIR is protected even when the variable is not set
+unset CLAUDE_CONFIG_DIR
+check $BLOCK 'cp /tmp/x $CLAUDE_CONFIG_DIR/settings.json'
+check_file $ALLOW Edit "$CFG/settings.json"
 
 # --- ambiguity detector (lib/ambiguous.pl): shapes the regexes cannot read are asked ---
 check $ASK   '"git" push origin main'
