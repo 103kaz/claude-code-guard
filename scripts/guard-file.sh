@@ -40,8 +40,15 @@ under_cfg() {
   done
   return 1
 }
+# The real path is taken from the nearest directory that exists (a new subdirectory such as agents/ does not yet)
 path_real_l=""
-if [ -n "$cfg_l" ] && real="$(cd -P "$(dirname "$path")" 2>/dev/null && pwd -P)"; then path_real_l="$(lower "$real/${path##*/}")"; fi
+if [ -n "$cfg_l" ]; then
+  dir="$(dirname "$path")" rest="${path##*/}"
+  while [ ! -d "$dir" ] && [ "$dir" != / ] && [ "$dir" != . ]; do
+    rest="${dir##*/}/$rest" dir="$(dirname "$dir")"
+  done
+  if real="$(cd -P "$dir" 2>/dev/null && pwd -P)"; then path_real_l="$(lower "${real%/}/$rest")"; fi
+fi
 
 is_secret() {
   local p="$1" f

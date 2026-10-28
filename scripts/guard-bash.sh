@@ -253,14 +253,19 @@ if [[ "$cmd_nr" == *cd* || "$cmd_nr" == *pushd* ]]; then
 fi
 # // and /./ in a path are one /, and dir/.. is dropped (~/.claude//settings.json, .git/./hooks, ~/./.gitconfig);
 # a URL scheme (https://) is left alone. The CLAUDE_CONFIG_DIR directory is read as ~/.claude: as written and its real path,
-# escaped for the regex, letters in either case (macOS volumes are usually case-insensitive), and only at the start of a
-# path. A spelled-out $CLAUDE_CONFIG_DIR counts even when the variable is not set
-cfg_re='\$CLAUDE_CONFIG_DIR|\$\{CLAUDE_CONFIG_DIR\}'
+# under HOME also as ~/x, $HOME/x and ${HOME}/x, escaped for the regex, letters in either case (macOS volumes are usually
+# case-insensitive), only at the start of a path, quoted or not. A spelled-out $CLAUDE_CONFIG_DIR (also ${...:-default})
+# counts even when the variable is not set
+cfg_re='\$CLAUDE_CONFIG_DIR|\$\{CLAUDE_CONFIG_DIR(:?[-=?+][^}]*)?\}'
 if cfgs="$(claude_config_dirs)"; then
-  cfg_re="$cfg_re|$(perl -ne 'chomp; s/([][\\.*^\$+?(){}|#])/\\$1/g; s/([A-Za-z])/"[".lc($1).uc($1)."]"/ge; push @r, $_;
+  cfg_re="$cfg_re|$(CG_HOME="$HOME" perl -ne 'chomp;
+    sub esc { my $s = shift; $s =~ s/([][\\.*^\$+?(){}|#])/\\$1/g; $s =~ s/([A-Za-z])/"[".lc($1).uc($1)."]"/ge; $s }
+    push @r, esc($_);
+    push @r, "(~|\\\$HOME|\\\$\\{HOME\\})/" . esc(substr($_, length($ENV{CG_HOME}) + 1))
+      if $ENV{CG_HOME} ne "/" && index($_, "$ENV{CG_HOME}/") == 0;
     END { print join("|", @r) }' <<<"$cfgs")"
 fi
-cmd_home="$(sed -E -e ':a' -e 's#([^:/])//+#\1/#g; s#/\./#/#g; s#(^|[[:space:]=<>])\./#\1#g; s#(^|[[:space:]=<>/])([^/.[:space:]][^/[:space:]]*|\.[^/.[:space:]][^/[:space:]]*)/\.\./#\1#; ta' -e 's#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g; s#(^|[^[:alnum:]_./~-])('"$cfg_re"')/#\1HOMECLAUDE/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.gitconfig([^[:alnum:]_.-]|$)#HOMEGITCONFIG\2#g' <<<"$cmd_nr${cmd_cd:+$'\n'$cmd_cd}" \
+cmd_home="$(sed -E -e ':a' -e 's#([^:/])//+#\1/#g; s#/\./#/#g; s#(^|[[:space:]=<>])\./#\1#g; s#(^|[[:space:]=<>/])([^/.[:space:]][^/[:space:]]*|\.[^/.[:space:]][^/[:space:]]*)/\.\./#\1#; ta' -e 's#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.claude/#HOMECLAUDE/#g; s#(^|[^[:alnum:]_./~-])["'"'"']?('"$cfg_re"')["'"'"']?/#\1HOMECLAUDE/#g; s#(~|\$HOME|\$\{HOME\}|'"$HOME"')/\.gitconfig([^[:alnum:]_.-]|$)#HOMEGITCONFIG\2#g' <<<"$cmd_nr${cmd_cd:+$'\n'$cmd_cd}" \
   | awk "$HEREDOC_AWK" \
   | sed -e ':a' -e '/\\$/N; s/\\\n//; ta' \
   | awk '{ gsub(/&&|\|\|/, "\n"); print }')"

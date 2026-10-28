@@ -1264,6 +1264,27 @@ check $BLOCK "cp /tmp/x $TMPROOT/cfg.link/settings.json"
 export CLAUDE_CONFIG_DIR="$CFG/"
 check_file $ASK   Edit "$CFG/settings.json"
 check $BLOCK "cp /tmp/x $CFG/settings.json"
+# Quoted and defaulted spellings of the variable, and a quoted path followed by /
+check $BLOCK 'cp /tmp/x "$CLAUDE_CONFIG_DIR"/settings.json'
+check $BLOCK 'echo x > ${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json'
+check $BLOCK 'echo x > "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"'
+check $BLOCK "echo x > \"$CFG\"/settings.json"
+# A subdirectory that does not exist yet, through the symlink
+check_file $ASK   Write "$TMPROOT/cfg.link/agents/new.md"
+export CLAUDE_CONFIG_DIR="$TMPROOT/cfg.link"
+check_file $ASK   Write "$CFG/agents/new.md"
+# A config directory under HOME, written from HOME (~, $HOME, cd ~)
+HCFG="$HOME/.code-guard-test-cfg"
+export CLAUDE_CONFIG_DIR="$HCFG"
+check $BLOCK 'cp /tmp/x ~/.code-guard-test-cfg/settings.json'
+check $BLOCK 'cp /tmp/x $HOME/.code-guard-test-cfg/settings.json'
+check $BLOCK 'cp /tmp/x "${HOME}/.code-guard-test-cfg/hooks/x"'
+check $BLOCK 'cd ~ && cp /tmp/x .code-guard-test-cfg/settings.json'
+check $BLOCK 'cd ~/.code-guard-test-cfg && cp /tmp/x hooks/x'
+check $ALLOW 'cp /tmp/x ~/.code-guard-test-cfgx/settings.json'
+export CLAUDE_CONFIG_DIR='~/.code-guard-test-cfg'
+check $BLOCK 'echo x > ~/.code-guard-test-cfg/settings.json'
+check_file $ASK   Write "$HCFG/settings.json"
 # A spelled-out $CLAUDE_CONFIG_DIR is protected even when the variable is not set
 unset CLAUDE_CONFIG_DIR
 check $BLOCK 'cp /tmp/x $CLAUDE_CONFIG_DIR/settings.json'
