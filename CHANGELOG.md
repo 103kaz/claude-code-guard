@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4 (2026-10-28)
+
+- Fixed: the guards followed `~/.claude` only. With `CLAUDE_CONFIG_DIR` set, Claude's writes to the settings, hooks and plugins under that directory were not stopped, and the chained-command guard read the sandbox settings from `~/.claude/settings.json` instead of `$CLAUDE_CONFIG_DIR/settings.json`. Now the Bash guard blocks writes under `CLAUDE_CONFIG_DIR` as it does under `~/.claude` (the value as written and its real path, under HOME also as `~/x`, `$HOME/x` and `${HOME}/x`, quoted or not, in either letter case, only at the start of a path), and the spellings `$CLAUDE_CONFIG_DIR`, `"$CLAUDE_CONFIG_DIR"` and `${CLAUDE_CONFIG_DIR:-…}` are blocked even when the variable is not set. The file-tool guard asks before an Edit or Write under it, comparing the real path of the nearest existing directory too (a symlink, `/tmp` and `/private/tmp` on macOS). `~/.claude` stays protected, and the approvals of `verify.sh` stay under `~/.claude/code-guard/verify-trust/`, because the terminal where you approve may not have the variable. Not read by the Bash guard: a third spelling that appears neither in the setting nor as its real path, and a relative path after `cd $CLAUDE_CONFIG_DIR` (as with `cd $HOME/.claude`).
+
 ## 0.5.3 (2026-10-27)
 
 - Docs: the install commands add the marketplace over its https URL (`https://github.com/103kaz/claude-code-guard.git`) instead of the `103kaz/claude-code-guard` shorthand, which clones over SSH when a key is configured. No behaviour change.
