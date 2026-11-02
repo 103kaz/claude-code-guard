@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: ja-JP
+reviews:
+  profile: chill
+  auto_review:
+    enabled: true
+    drafts: false
+    # PR は main ではなく release-<版> ブランチ向けに出すため、既定ブランチ以外もレビュー対象にする
+    base_branches:
+      - "release-.*"
+  path_instructions:
+    - path: "**"
+      instructions: |
+        公開リポジトリ。ユーザー名、メールアドレス、手元の絶対パス、非公開リポジトリの名前、機密値が混入していないか確認する。
