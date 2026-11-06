@@ -24,6 +24,13 @@
       "description": "Ask for confirmation before pushing a work branch",
       "default": false
     },
+    "pr_title_prefixes": {
+      "type": "string",
+      "multiple": true,
+      "title": "PR title prefixes",
+      "description": "Block gh pr create / gh pr edit whose --title does not start with one of these (letters, digits, _ and -; e.g. feat, fix, docs gives 'feat: ...' or 'fix(scope): ...'). Empty turns the check off",
+      "default": []
+    },
     "pack_github": {
       "type": "boolean",
       "title": "GitHub pack",

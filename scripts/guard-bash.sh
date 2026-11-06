@@ -612,6 +612,13 @@ if grep -Eiq "${P}gh[[:space:]]+api([^|;&]*)[[:space:]](-X|--method)[[:space:]=]
 fi
 fi
 
+# --- gitleaks scanning a directory instead of git history (core) ---
+# gitleaks dir (and the older detect --no-git) reads every file under the path, gitignored secrets (.env, keys) included.
+# gitleaks git --redact scans the commits only
+if grep -Eq "${P}gitleaks([[:space:]]+-[^[:space:]]+)*[[:space:]]+(dir|directory)([[:space:]]|$)|${P}gitleaks[[:space:]]+detect([^|;&]*)[[:space:]]--no-git([[:space:]]|$)" <<<"$cmd_msg"; then
+  block "gitleaks dir / detect --no-git reads gitignored secret files too. Use 'gitleaks git --redact' (scans the commits only)"
+fi
+
 # --- git operations that discard uncommitted work (ask) (core) ---
 # Untracked files are not in git history and cannot be restored after clean or reset --hard
 if grep -Eq "${GIT}clean([[:space:]\"']|$)" <<<"$cmd_msg" && ! grep -Eq "${GIT}clean([^|;&]*)[[:space:]](-[a-zA-Z]*n[a-zA-Z]*|--dry-run)([[:space:]]|$)" <<<"$cmd_msg"; then

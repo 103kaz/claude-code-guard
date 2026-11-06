@@ -168,7 +168,11 @@ while ($i < $n) {
 }
 flush();
 
-exit 0 if @seg < 2;
+# CG_MODE=gitopts: report a segment where git global options (git -C dir push) hide an excluded command. The excluded
+# pattern "git push *" matches only when push follows git directly, so with -C the command runs inside the sandbox.
+# Default mode: report a segment matching an excluded pattern when the command has more than one segment.
+my $mode = ($ENV{CG_MODE} // '') eq 'gitopts' ? 'gitopts' : 'chain';
+exit 0 if $mode eq 'chain' && @seg < 2;
 
 my @re = map {
   my $p = $_;
@@ -179,6 +183,22 @@ my @re = map {
   my $r = join '.*', map { quotemeta } split /\*/, $p, -1;
   qr/\A$r$tail\z/;
 } @patterns;
+
+if ($mode eq 'gitopts') {
+  my $word = qr/"[^"]*"|'[^']*'|\S+/;
+  my $opt = qr/ (?:(?:-C|-c|--git-dir|--work-tree|--namespace) $word|--(?:git-dir|work-tree|namespace)=$word|--no-pager|-P|--no-optional-locks|--bare|--no-replace-objects|--literal-pathspecs)/;
+  for my $s (@seg) {
+    my $t = $s;
+    $t =~ s/\s+/ /g;
+    next if grep { $t =~ $_ } @re;    # matches as written: nothing hidden
+    my $stripped = $t;
+    next unless $stripped =~ s/\Agit(?:$opt)+ /git /;
+    for my $r (@re) {
+      if ($stripped =~ $r) { print $t; exit 0; }
+    }
+  }
+  exit 0;
+}
 
 for my $s (@seg) {
   my $t = $s;

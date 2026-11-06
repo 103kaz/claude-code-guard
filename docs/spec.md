@@ -27,6 +27,7 @@ claude-code-guard/
 │   ├── guard-file.sh       # PreToolUse(Read|Edit|Write|MultiEdit|NotebookEdit|Grep)
 │   ├── guard-mcp.sh        # PreToolUse(mcp__.*)
 │   ├── guard-chain.sh      # PreToolUse(Bash): sandbox の除外コマンドに連結したコマンドを止める
+│   ├── guard-pr-title.sh   # PreToolUse(Bash): gh pr のタイトルが必須のプレフィックスで始まらないとき止める (pr_title_prefixes)
 │   ├── fmt-terraform.sh    # PostToolUse(Edit|Write): .tf を整形
 │   ├── verify-loop.sh      # UserPromptSubmit と Stop
 │   ├── trust-verify.sh     # 利用者が実行する: verify.sh の内容 (SHA-256) を承認する
@@ -42,6 +43,7 @@ claude-code-guard/
 │   ├── test-check-deps.sh
 │   ├── test-check-enabled.sh
 │   ├── test-chain.sh
+│   ├── test-pr-title.sh
 │   ├── test-defaults.sh
 │   ├── manual-check-onfailure.sh
 │   └── manual-check-multiple.sh
@@ -126,6 +128,14 @@ Glob はファイル名を返すだけなので対象にしない。
 
 `sandbox.excludedCommands` に載るコマンドは、コマンド全体がそれ 1 つのときだけ sandbox の外で動く。`&&`、`||`、`;`、`|`、改行でつなぐと sandbox の中で動き、`.git` への書き込みや `gh` の呼び出しが失敗する。PreToolUse(Bash) のフック `guard-chain.sh` が、失敗する前に block する (exit 2。理由は、連結せず 1 コマンドずつ別の呼び出しにするよう返す)。
 
+同じフックは、`git -C <dir> push` のように、git とサブコマンドのあいだにグローバルオプション (`-C`、`-c`、`--git-dir`、`--work-tree`、`--namespace`、`--no-pager`、`-P`、`--no-optional-locks`、`--bare`、`--no-replace-objects`、`--literal-pathspecs`) が入った形も止める。除外パターン (`git push *`) は git の直後にサブコマンドが来る形にしか一致せず、この形は sandbox の中で動いて失敗するため。オプションを外した形がパターンに一致するときだけ止め、オプションを付けずにリポジトリのディレクトリで実行するよう返す。
+
+### PR タイトルのプレフィックスのガード
+
+`pr_title_prefixes` が空のあいだは何もしない。1 つ以上あると、PreToolUse(Bash) のフック `guard-pr-title.sh` が、`gh pr create` / `gh pr edit` の `--title` / `-t` (`--title=` も) を `lib/pr-title.pl` で読み、`<プレフィックス>:`、`<プレフィックス>(scope):`、`<プレフィックス>!:` のあとに空白が続く形で始まらなければ止める (exit 2。理由は、合うプレフィックスで打ち直すよう返す)。タイトルを渡していない、`$` や バッククォートで始まる、単語に分けられない (閉じていない引用符) ときは通す。`onFailure` は付けない (読めなければ通す、スタイルの補助)。
+
+`gitleaks dir` / `gitleaks directory` / `gitleaks detect --no-git` は、gitignore 済みの機密ファイルまで読むので、`guard-bash.sh` の中核で block する (理由は `gitleaks git --redact` を使うよう返す)。メッセージの値 (`git commit -m` など) に書いた文字列は見ない。
+
 | 項目 | 仕様 |
 |---|---|
 | 読む設定 | `~/.claude/settings.json` (`CLAUDE_CONFIG_DIR` があれば `$CLAUDE_CONFIG_DIR/settings.json`)、プロジェクトの `.claude/settings.json` と `.claude/settings.local.json`。`sandbox.enabled` は後のファイルが優先、`excludedCommands` は全部を合わせる |
@@ -183,6 +193,7 @@ Glob はファイル名を返すだけなので対象にしない。
 |---|---|---|---|
 | `protected_branches` | `string` (`multiple: true`) | `["main", "master"]` | push を block するブランチ。`*` はブランチ名に使う文字の任意の並びに合う (`release/*`) |
 | `confirm_push` | 真偽値 | `false` | 作業ブランチへの push に確認を出す |
+| `pr_title_prefixes` | `string` (`multiple: true`) | `[]` (無効) | `gh pr create` / `gh pr edit` のタイトルが始まるべきプレフィックス。空のあいだは検査しない |
 | `pack_github` | 真偽値 | `true` | github パック |
 | `pack_terraform` | 真偽値 | `true` | terraform パック |
 | `pack_gcp` | 真偽値 | `true` | gcp パック |
@@ -227,7 +238,8 @@ Claude が設定を書き換えてガードを緩めることを防ぐため、`
 | 検証ループ | `tests/test-verify.sh` |
 | 依存の確認 | `tests/test-check-deps.sh` |
 | 無効化の警告 | `tests/test-check-enabled.sh` |
-| 連結の検知 | `tests/test-chain.sh` |
+| 連結と git のグローバルオプションの検知 | `tests/test-chain.sh` |
+| PR タイトル | `tests/test-pr-title.sh` |
 | 設定の既定の一致 | `tests/test-defaults.sh` (plugin.json の default と、設定が無いときのフックの動作が同じか) |
 | onFailure の実機確認 | `tests/manual-check-onfailure.sh` (ログイン済みの claude が要る。手で流し、CI では流さない) |
 | multiple の設定の形の確認 | `tests/manual-check-multiple.sh` (ログイン済みの claude が要る。手で流し、CI では流さない) |

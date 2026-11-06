@@ -10,9 +10,10 @@ command -v jq >/dev/null 2>&1 && command -v perl >/dev/null 2>&1 || exit 0
 
 input="$(cat)"
 cmd="$(jq -er '.tool_input.command // ""' <<<"$input" 2>/dev/null)" || exit 0
-# A command with none of the separator characters is a single command
+# A command with none of the separator characters is a single command; one with git and an option may still hide an
+# excluded command behind git global options (git -C dir push)
 case "$cmd" in
-  *'&'*|*';'*|*'|'*|*$'\n'*) ;;
+  *'&'*|*';'*|*'|'*|*$'\n'*|*git*' -'*) ;;
   *) exit 0 ;;
 esac
 
@@ -38,10 +39,20 @@ patterns="$(jq -r '.patterns[]' <<<"$cfg" 2>/dev/null)" || exit 0
 # The perl script splits the command at the top level (quotes, redirects like 2>&1 and heredoc bodies are not
 # separators) and prints the first segment that matches an excluded pattern when there is more than one segment
 hit="$(CG_CMD="$cmd" CG_PATTERNS="$patterns" perl "${BASH_SOURCE[0]%/*}/lib/chain.pl" 2>/dev/null)" || exit 0
-[ -n "$hit" ] || exit 0
+if [ -n "$hit" ]; then
+  {
+    echo "BLOCKED by code-guard: '$hit' is excluded from the sandbox (settings sandbox.excludedCommands) only as the whole command."
+    echo "Chained with && || ; | or a newline it runs inside the sandbox and fails. This is not a policy block: run each command in its own Bash call, with no chaining, redirects or pipes added."
+  } >&2
+  exit 2
+fi
 
+# git global options (-C dir, -c k=v, --git-dir ...) between git and the subcommand: "git push *" does not match, so the
+# command runs inside the sandbox and fails. Run it from the repository directory instead of passing -C
+hit="$(CG_MODE=gitopts CG_CMD="$cmd" CG_PATTERNS="$patterns" perl "${BASH_SOURCE[0]%/*}/lib/chain.pl" 2>/dev/null)" || exit 0
+[ -n "$hit" ] || exit 0
 {
-  echo "BLOCKED by code-guard: '$hit' is excluded from the sandbox (settings sandbox.excludedCommands) only as the whole command."
-  echo "Chained with && || ; | or a newline it runs inside the sandbox and fails. This is not a policy block: run each command in its own Bash call, with no chaining, redirects or pipes added."
+  echo "BLOCKED by code-guard: '$hit' has git global options (-C, -c, --git-dir ...) before the subcommand, so it does not match sandbox.excludedCommands and runs inside the sandbox, where it fails."
+  echo "This is not a policy block: run it from the repository directory without the option (the session's working directory must be that repository; ask the user to add or move to it if it is not), or give the user the command to run themselves."
 } >&2
 exit 2
