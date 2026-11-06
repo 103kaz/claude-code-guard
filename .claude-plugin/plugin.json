@@ -1,6 +1,6 @@
 {
   "name": "code-guard",
-  "version": "0.5.4",
+  "version": "0.6.0",
   "description": "Harness for Claude Code: hooks that stop dangerous operations (push to protected branches, secret reads, destructive commands), plus a verify loop.",
   "author": {
     "name": "103kaz"
@@ -23,6 +23,13 @@
       "title": "Confirm pushes",
       "description": "Ask for confirmation before pushing a work branch",
       "default": false
+    },
+    "pr_title_prefixes": {
+      "type": "string",
+      "multiple": true,
+      "title": "PR title prefixes",
+      "description": "Block gh pr create / gh pr edit whose --title does not start with one of these (letters, digits, _ and -; e.g. feat, fix, docs gives 'feat: ...' or 'fix(scope): ...'). Empty turns the check off",
+      "default": []
     },
     "pack_github": {
       "type": "boolean",

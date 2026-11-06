@@ -337,7 +337,7 @@ done <<<"$trust_cmd"
 if grep -Eiq "${P}git([[:space:]]+-[^[:space:]]+)*[[:space:]]+config([^|;&]*)core\.hooksPath" <<<"$cmd_msg" \
    && { grep -Eq "config([^|;&]*)[[:space:]](--)?(unset|unset-all|remove-section)([[:space:]]|$)" <<<"$cmd_msg" \
         || grep -Eiq 'core\.hooksPath[[:space:]]+[^[:space:];&|]' <<<"$cmd_msg"; } \
-   && ! grep -Eiq 'core\.hooksPath[[:space:]]+\.githooks([[:space:];&|]|$)' <<<"$cmd_msg"; then
+   && ! grep -Eiq 'core\.hooksPath[[:space:]]+\.githooks([[:space:];&|<>)]|$)' <<<"$cmd_msg"; then
   block "changing core.hooksPath is not allowed (it disables git hooks)"
 fi
 # A one-off override also drops hooks: git -c / --config-env, GIT_CONFIG_* env vars, including another config file.
@@ -610,6 +610,17 @@ if grep -Eiq "${P}gh[[:space:]]+api([^|;&]*)[[:space:]](-X|--method)[[:space:]=]
     block "mutating gh api requests (POST/PUT/PATCH/DELETE, -f/-F/--input) are not allowed (except a lone call to a repository-settings path)"
   fi
 fi
+fi
+
+# --- gitleaks scanning a directory instead of git history (core) ---
+# gitleaks dir (and the older detect --no-git) reads every file under the path, gitignored secrets (.env, keys) included.
+# gitleaks git --redact scans the commits only
+# Options before the subcommand may take a value (gitleaks -c cfg.toml dir .; the value may be quoted and hold spaces), so
+# an option may be followed by one word. The subcommand may be quoted too (gitleaks "dir" .). A command that only prints or
+# searches (echo "gitleaks dir", grep) is read from cmd_scan, where the quoted text is emptied
+GL_OPTS="([[:space:]]+-[^[:space:]]+([[:space:]]+(\"[^\"]*\"|'[^']*'|[^-[:space:]\"'][^[:space:]]*))?)*"
+if grep -Eq "${P}gitleaks${GL_OPTS}[[:space:]]+(dir|directory|file|\"(dir|directory|file)\"|'(dir|directory|file)')([[:space:];&|<>)]|$)|${P}gitleaks${GL_OPTS}[[:space:]]+(detect|\"detect\"|'detect')([^|;&]*)[[:space:]]--no-git(=(true|TRUE|True|t|T|1))?([[:space:];&|<>)]|$)" <<<"$cmd_scan"; then
+  block "gitleaks dir / detect --no-git reads gitignored secret files too. Use 'gitleaks git --redact' (scans the commits only)"
 fi
 
 # --- git operations that discard uncommitted work (ask) (core) ---

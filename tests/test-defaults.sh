@@ -52,6 +52,12 @@ for key in $keys; do
       same "$key (min)" "$lo" "$(jq -c ".userConfig.$key.min" "$manifest")"
       same "$key (max)" "$hi" "$(jq -c ".userConfig.$key.max" "$manifest")"
       ;;
+    pr_title_prefixes)
+      # A title without a prefix is stopped only when the option names prefixes; unset, it passes (an empty list)
+      jq -nc '{tool_name:"Bash",tool_input:{command:"gh pr create --title \"no prefix\""}}' | bash "$ROOT/scripts/guard-pr-title.sh" >/dev/null 2>&1
+      if [ $? = 0 ]; then got='[]'; else got='set'; fi
+      same "$key" "$got" "$decl"
+      ;;
     verify_missing_notice)
       # tests/test-verify.sh runs the hook with the variable unset and expects the notice, which is the default true
       same "$key" "true" "$decl"
