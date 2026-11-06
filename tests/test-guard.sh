@@ -395,6 +395,9 @@ check $ALLOW 'gitleaks detect --redact'
 check $BLOCK 'gitleaks "dir" .'
 check $BLOCK "gitleaks 'dir' ."
 check $BLOCK 'gitleaks "directory" .'
+check $BLOCK 'gitleaks file .'
+check $BLOCK 'gitleaks "file" .'
+check $BLOCK "gitleaks -c cfg.toml 'file' ."
 check $BLOCK 'gitleaks "detect" --no-git'
 check $BLOCK 'gitleaks -c "my config.toml" dir .'
 check $BLOCK "gitleaks -c 'my config.toml' dir ."

@@ -128,13 +128,13 @@ Glob はファイル名を返すだけなので対象にしない。
 
 `sandbox.excludedCommands` に載るコマンドは、コマンド全体がそれ 1 つのときだけ sandbox の外で動く。`&&`、`||`、`;`、`|`、改行でつなぐと sandbox の中で動き、`.git` への書き込みや `gh` の呼び出しが失敗する。PreToolUse(Bash) のフック `guard-chain.sh` が、失敗する前に block する (exit 2。理由は、連結せず 1 コマンドずつ別の呼び出しにするよう返す)。
 
-同じフックは、`git -C <dir> push` のように、git とサブコマンドのあいだにグローバルオプション (`-C`、`-c`、`--git-dir`、`--work-tree`、`--namespace`、`--exec-path`、`--super-prefix`、`--attr-source`、`--config-env`、`--no-pager`、`-p` / `--paginate`、`-P`、`--no-optional-locks`、`--no-advice`、`--no-lazy-fetch`、`--bare`、`--no-replace-objects`、`--literal-pathspecs`。一覧に無いものと `-C` に連結した値は見ない。セグメントの先頭の `git` だけを見る) が入った形も止める。除外パターン (`git push *`) は git の直後にサブコマンドが来る形にしか一致せず、この形は sandbox の中で動いて失敗するため。オプションを外した形がパターンに一致するときだけ止め、オプションを付けずにリポジトリのディレクトリで実行するよう返す。
+同じフックは、`git -C <dir> push` のように、git とサブコマンドのあいだにグローバルオプション (`-C`、`-c`、`--git-dir`、`--work-tree`、`--namespace`、`--exec-path=<path>`、`--super-prefix`、`--attr-source`、`--config-env`、`--no-pager`、`-p` / `--paginate`、`-P`、`--no-optional-locks`、`--no-advice`、`--no-lazy-fetch`、`--bare`、`--no-replace-objects`、`--literal-pathspecs`。一覧に無いものと `-C` に連結した値は見ない。セグメントの先頭の `git` だけを見る) が入った形も止める。除外パターン (`git push *`) は git の直後にサブコマンドが来る形にしか一致せず、この形は sandbox の中で動いて失敗するため。オプションを外した形がパターンに一致するときだけ止め、オプションを付けずにリポジトリのディレクトリで実行するよう返す。
 
 ### PR タイトルのプレフィックスのガード
 
 `pr_title_prefixes` が空のあいだは何もしない。1 つ以上あると、PreToolUse(Bash) のフック `guard-pr-title.sh` が、`gh pr create` / `gh pr edit` の `--title` / `-t` (`--title=` も) を `lib/pr-title.pl` で読み、`<プレフィックス>:`、`<プレフィックス>(scope):`、`<プレフィックス>!:` のあとに空白が続く形で始まらなければ止める (exit 2。理由は、合うプレフィックスで打ち直すよう返す)。タイトルを渡していない、`$` や バッククォートで始まる、単語に分けられない (閉じていない引用符)、値を連結した短いオプション (`-tbad`、`-ft bad`) のときは通す。`--title` が 2 回あるときは最初の値を判定する。heredoc の本文は取り除いてから読み、`gh` はコマンドの位置 (先頭、`&&` `||` `;` `|` の後、`VAR=x` / `sudo` / `env` / `command` / `time` / `nohup` / `exec` / `nice` の後) にあるものだけを数える。`onFailure` は付けない (読めなければ通す、スタイルの補助)。
 
-`gitleaks dir` / `gitleaks directory` / `gitleaks detect --no-git` は、gitignore 済みの機密ファイルまで読むので、`guard-bash.sh` の中核で block する (理由は `gitleaks git --redact` を使うよう返す)。メッセージの値 (`git commit -m` など) に書いた文字列は見ない。
+`gitleaks dir` / `gitleaks directory` / `gitleaks file` / `gitleaks detect --no-git` は、gitignore 済みの機密ファイルまで読むので、`guard-bash.sh` の中核で block する (理由は `gitleaks git --redact` を使うよう返す)。メッセージの値 (`git commit -m` など) に書いた文字列は見ない。
 
 | 項目 | 仕様 |
 |---|---|

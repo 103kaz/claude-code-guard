@@ -67,7 +67,7 @@ check 2 'git -p push'
 check 2 'git --paginate add -A'
 check 2 'git --no-advice commit -m x'
 check 2 'git --exec-path=/x push'
-check 2 'git -C /r --exec-path push'
+check 0 'git -C /r --exec-path push'
 check 0 'git -C /repo status'
 check 0 'git -C /repo log --oneline | head -3'
 check 0 'git --no-pager log -3'
@@ -80,8 +80,12 @@ check 2 "git '-C' /repo push"
 check 2 'git "-C" /repo add -A'
 check 2 "git '-c' user.name=x commit -m y"
 check 2 'git -c "k=a b" commit -m y'
-check 2 'git --config-env NAME=VAR push'
-check 2 'git --config-env=NAME=VAR push'
+check 2 'git --config-env test.example=VAR push'
+check 2 'git --config-env=test.example=VAR push'
+check 2 "git '--git-dir=/r/.git' push"
+check 2 'git "--work-tree=/r" add -A'
+# A bare --exec-path prints the path and exits: nothing is pushed
+check 0 'git --exec-path push'
 # Not detected: the environment prefix hides git from the pattern as well
 check 0 'FOO=1 git -C /r push'
 check 0 'env git -C /r push'
