@@ -74,11 +74,11 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 
 サンドボックスが有効なとき、`sandbox.excludedCommands` に載るコマンドがサンドボックスの外で動くのは、コマンド全体がそれ 1 つのときだけです。`&&`、`||`、`;`、`|`、改行でつなぐとサンドボックスの中で動き、失敗します (`.git` への git の書き込み、`gh` の呼び出し)。このガードは `~/.claude/settings.json` (`CLAUDE_CONFIG_DIR` があれば `$CLAUDE_CONFIG_DIR/settings.json`)、`.claude/settings.json`、`.claude/settings.local.json` から `sandbox.enabled` と `sandbox.excludedCommands` を読み、そのような連結を block して、1 コマンドずつ別の呼び出しにするよう返します。引用符の中、`2>&1` などのリダイレクト、heredoc の本文は区切りに数えません。パターンは 1 つのセグメント全体に照合し、末尾の空白とアスタリスク (`git push *`) や `:*` は、引数のないコマンドにも一致します。`git` のように 1 語だけのパターンは、その語だけのコマンドに一致します。最後まで読めないコマンド (閉じていない引用符) は通します。見落とす形は、`$(...)` や `bash -c "..."` の中の連結、環境変数の接頭辞 (`FOO=1 git push && ls`)、サブシェル、`if ...; then ...; fi` です。サンドボックスが無効なとき、パターンが無いとき、設定を読めないときは何もしません。使いやすさのための補助で、セキュリティのガードではなく、外す設定もありません。
 
-同じフックは、除外コマンドのサブコマンドの前に git のグローバルオプションが付いた形も止めます。`git -C /repo push` は `git push *` に一致しないので、サンドボックスの中で動いて失敗します。読み飛ばすオプションは `-C`、`-c`、`--git-dir`、`--work-tree`、`--namespace`、`--no-pager`、`-P`、`--no-optional-locks`、`--bare`、`--no-replace-objects`、`--literal-pathspecs` です。オプションを外した形がパターンに一致するときだけ block し、オプションを付けずにリポジトリのディレクトリで実行するよう返します。
+同じフックは、除外コマンドのサブコマンドの前に git のグローバルオプションが付いた形も止めます。`git -C /repo push` は `git push *` に一致しないので、サンドボックスの中で動いて失敗します。読み飛ばすオプションは `-C`、`-c`、`--git-dir`、`--work-tree`、`--namespace`、`--exec-path`、`--super-prefix`、`--attr-source`、`--config-env`、`--no-pager`、`-p` / `--paginate`、`-P`、`--no-optional-locks`、`--no-advice`、`--no-lazy-fetch`、`--bare`、`--no-replace-objects`、`--literal-pathspecs` です。この一覧に無いオプションと、`-C` に値を連結した形 (`-C/repo`) は見ません。オプションを外した形がパターンに一致するときだけ block し、オプションを付けずにリポジトリのディレクトリで実行するよう返します。連結の検知と同じく、セグメントの先頭の `git` だけを見ます (`sudo git -C ...` やサブシェルは見ません)。
 
 ### PR タイトルのプレフィックス (`guard-pr-title.sh`)
 
-`pr_title_prefixes` にプレフィックス (たとえば `feat`、`fix`、`docs`) を 1 つ以上書くまでは無効です。書くと、`gh pr create` と `gh pr edit` の `--title` / `-t` が `<プレフィックス>:`、`<プレフィックス>(scope):`、`<プレフィックス>!:` のあとに空白が続く形で始まらないとき block し、合うプレフィックスで打ち直すよう返します。読めないタイトルは通します (タイトルを渡していない `--fill`、変数や `$(...)` で組み立てたもの、単語に分けられないコマンド)。スタイルの補助で、セキュリティのガードではありません。
+`pr_title_prefixes` にプレフィックス (たとえば `feat`、`fix`、`docs`) を 1 つ以上書くまでは無効です。書くと、`gh pr create` と `gh pr edit` の `--title` / `-t` が `<プレフィックス>:`、`<プレフィックス>(scope):`、`<プレフィックス>!:` のあとに空白が続く形で始まらないとき block し、合うプレフィックスで打ち直すよう返します。読めないタイトルは通します (タイトルを渡していない `--fill`、変数や `$(...)` で組み立てたもの、単語に分けられないコマンド、値を連結した短いオプション `-tbad` / `-ft bad`)。`--title` が 2 回あるときは最初の値を判定します。`gh` はコマンドの位置 (先頭、`&&` `||` `;` `|` の後、`VAR=x` / `sudo` / `env` / `time` などの後) にあるときだけ数えるので、`echo gh pr create --title x` や、heredoc の本文に書いただけの `gh pr create` は通ります。スタイルの補助で、セキュリティのガードではありません。
 
 ### パック
 

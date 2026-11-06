@@ -186,7 +186,7 @@ my @re = map {
 
 if ($mode eq 'gitopts') {
   my $word = qr/"[^"]*"|'[^']*'|\S+/;
-  my $opt = qr/ (?:(?:-C|-c|--git-dir|--work-tree|--namespace) $word|--(?:git-dir|work-tree|namespace)=$word|--no-pager|-P|--no-optional-locks|--bare|--no-replace-objects|--literal-pathspecs)/;
+  my $opt = qr/ (?:(?:-C|-c|--git-dir|--work-tree|--namespace) $word|--(?:git-dir|work-tree|namespace)=$word|--(?:exec-path|super-prefix|attr-source|config-env)=$word|--exec-path|--no-pager|-p|--paginate|-P|--no-optional-locks|--no-advice|--no-lazy-fetch|--bare|--no-replace-objects|--literal-pathspecs)/;
   for my $s (@seg) {
     my $t = $s;
     $t =~ s/\s+/ /g;

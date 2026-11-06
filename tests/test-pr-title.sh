@@ -56,6 +56,23 @@ check 0 "$P" 'echo "gh pr create --title x"'
 check 0 "$P" 'gh pr create --title "unterminated'
 check 0 "$P" 'ls -la'
 
+# Mentioning the command is not running it: arguments, quoted text and heredoc bodies
+check 0 "$P" 'echo gh pr create --title bad'
+check 0 "$P" 'grep -n gh pr create --title x file'
+check 0 "$P" $'git commit -F - <<EOF\nuse gh pr edit --title foo later\nEOF'
+check 0 "$P" $'cat <<EOF\ngh pr create --title bad\nEOF'
+check 0 "$P" $'cat <<-EOF\n\tgh pr create --title bad\n\tEOF'
+check 0 "$P" 'man gh pr create --title bad'
+# Prefixes that run the next word, and every command position, still count
+check 2 "$P" 'GH_TOKEN=x gh pr create --title bad'
+check 2 "$P" 'env GH_REPO=o/r gh pr create --title bad'
+check 2 "$P" 'sudo gh pr create --title bad'
+check 2 "$P" 'time gh pr create --title bad'
+check 2 "$P" 'echo a; gh pr create --title bad'
+check 2 "$P" 'echo a || gh pr create --title bad'
+check 2 "$P" $'gh pr create --title "no prefix" --body "$(cat <<\'EOF\'\nbody\nEOF\n)"'
+check 0 "$P" $'gh pr create --title "feat: x" --body "$(cat <<\'EOF\'\nbody\nEOF\n)"'
+
 # The body or another command's --title is not the PR title
 check 0 "$P" 'gh pr create --title "feat: x" --body "see --title no prefix"'
 check 0 "$P" 'gh pr create --title "feat: x" && gh issue create --title "no prefix"'

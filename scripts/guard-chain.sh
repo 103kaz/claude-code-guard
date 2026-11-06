@@ -13,8 +13,8 @@ cmd="$(jq -er '.tool_input.command // ""' <<<"$input" 2>/dev/null)" || exit 0
 # A command with none of the separator characters is a single command; one with git and an option may still hide an
 # excluded command behind git global options (git -C dir push)
 case "$cmd" in
-  *'&'*|*';'*|*'|'*|*$'\n'*|*'git -'*) ;;
-  *) exit 0 ;;
+  *'&'*|*';'*|*'|'*|*$'\n'*) ;;
+  *) grep -Eq 'git[[:space:]]+-' <<<"$cmd" || exit 0 ;;   # any run of spaces or tabs, as chain.pl reads it
 esac
 
 # shellcheck source=lib/common.sh

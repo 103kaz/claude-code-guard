@@ -616,7 +616,7 @@ fi
 # gitleaks dir (and the older detect --no-git) reads every file under the path, gitignored secrets (.env, keys) included.
 # gitleaks git --redact scans the commits only
 # Options before the subcommand may take a value (gitleaks -c cfg.toml dir .), so an option may be followed by one word
-if grep -Eq "${P}gitleaks([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+(dir|directory)([[:space:]]|$)|${P}gitleaks[[:space:]]+detect([^|;&]*)[[:space:]]--no-git([[:space:]]|$)" <<<"$cmd_msg"; then
+if grep -Eq "${P}gitleaks([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+(dir|directory)([[:space:]]|$)|${P}gitleaks[[:space:]]+detect([^|;&]*)[[:space:]]--no-git(=(true|TRUE|True|t|T|1))?([[:space:]]|$)" <<<"$cmd_msg"; then
   block "gitleaks dir / detect --no-git reads gitignored secret files too. Use 'gitleaks git --redact' (scans the commits only)"
 fi
 

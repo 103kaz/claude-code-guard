@@ -4,7 +4,7 @@
 
 - New: `gitleaks dir`, `gitleaks directory` and `gitleaks detect --no-git` are blocked. They read every file under the path, gitignored secrets (`.env`, keys) included. The message says to use `gitleaks git --redact`, which scans commits only.
 - `guard-chain.sh` also blocks git global options in front of an excluded subcommand (`git -C /repo push`, `git -c k=v commit`, `git --git-dir=... add`). `git push *` does not match them, so they ran inside the sandbox and failed. It blocks only when the command without those options would match an excluded pattern.
-- New hook `guard-pr-title.sh` and option `pr_title_prefixes` (default empty, off): with prefixes set, `gh pr create` / `gh pr edit` whose `--title` does not start with `<prefix>:`, `<prefix>(scope):` or `<prefix>!:` is blocked with a message to retry with a fitting prefix. A title it cannot read passes.
+- New hook `guard-pr-title.sh` and option `pr_title_prefixes` (default empty, off): with prefixes set, `gh pr create` / `gh pr edit` whose `--title` does not start with `<prefix>:`, `<prefix>(scope):` or `<prefix>!:` is blocked with a message to retry with a fitting prefix. A title it cannot read passes. `gh` counts only in command position, and heredoc bodies are skipped, so `echo gh pr create --title x` is not stopped.
 
 ## 0.5.4 (2026-10-28)
 
