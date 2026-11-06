@@ -612,6 +612,17 @@ if grep -Eiq "${P}gh[[:space:]]+api([^|;&]*)[[:space:]](-X|--method)[[:space:]=]
 fi
 fi
 
+# --- gitleaks scanning a directory instead of git history (core) ---
+# gitleaks dir (and the older detect --no-git) reads every file under the path, gitignored secrets (.env, keys) included.
+# gitleaks git --redact scans the commits only
+# Options before the subcommand may take a value (gitleaks -c cfg.toml dir .; the value may be quoted and hold spaces), so
+# an option may be followed by one word. The subcommand may be quoted too (gitleaks "dir" .). A command that only prints or
+# searches (echo "gitleaks dir", grep) is read from cmd_scan, where the quoted text is emptied
+GL_OPTS="([[:space:]]+-[^[:space:]]+([[:space:]]+(\"[^\"]*\"|'[^']*'|[^-[:space:]\"'][^[:space:]]*))?)*"
+if grep -Eq "${P}gitleaks${GL_OPTS}[[:space:]]+(dir|directory|\"(dir|directory)\"|'(dir|directory)')([[:space:]]|$)|${P}gitleaks${GL_OPTS}[[:space:]]+(detect|\"detect\"|'detect')([^|;&]*)[[:space:]]--no-git(=(true|TRUE|True|t|T|1))?([[:space:]]|$)" <<<"$cmd_scan"; then
+  block "gitleaks dir / detect --no-git reads gitignored secret files too. Use 'gitleaks git --redact' (scans the commits only)"
+fi
+
 # --- git operations that discard uncommitted work (ask) (core) ---
 # Untracked files are not in git history and cannot be restored after clean or reset --hard
 if grep -Eq "${GIT}clean([[:space:]\"']|$)" <<<"$cmd_msg" && ! grep -Eq "${GIT}clean([^|;&]*)[[:space:]](-[a-zA-Z]*n[a-zA-Z]*|--dry-run)([[:space:]]|$)" <<<"$cmd_msg"; then

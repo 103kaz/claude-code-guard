@@ -47,7 +47,7 @@ Each decision is one of: **block** (exit 2, cannot be approved), **ask** (a conf
 | Protected branches | push to a protected branch (a bare `git push` on one, `heads/main`, and a repository reached through `cd` or `GIT_DIR=` included), a lone `:` or a wildcard refspec | first push to an empty remote |
 | Push shape | `--no-verify`, `--mirror`, `--delete` / `-d` / `:ref`, `--prune`, `--all` | force push (`+ref` included), every work-branch push when `confirm_push` is on |
 | Hook bypass | `core.hooksPath`, `git -c`, `--config-env`, `GIT_CONFIG_*`, alias / include settings, removing the core / alias / include section, git with `HOME=` / `XDG_CONFIG_HOME=`, writes to `~/.gitconfig` / `~/.config/git/config`, `--no-verify` on commit / merge (`commit -n`) | |
-| Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, git credentials (`~/.git-credentials`, `git credential fill`), keychain values. Names after `<`, `rev:` and `--opt=` (except terraform's `-var-file=`), and globs or braces that expand to one (`.en?`, `.e{n,x}v`) are included. Names are matched without case (`.ENV`) | a command substitution that builds a string (`cat $(printf .e%snv)`) |
+| Secrets | `.env` / `.env.*` (samples excluded), `*.tfvars`, `*.tfstate`, `*token*.txt`, `*.pem`, `*.key`, `~/.ssh`, signing assets, service account keys, CLI credentials, git credentials (`~/.git-credentials`, `git credential fill`), keychain values, `gitleaks dir` / `gitleaks detect --no-git` (they read gitignored secret files; `gitleaks git --redact` scans commits only). Names after `<`, `rev:` and `--opt=` (except terraform's `-var-file=`), and globs or braces that expand to one (`.en?`, `.e{n,x}v`) are included. Names are matched without case (`.ENV`) | a command substitution that builds a string (`cat $(printf .e%snv)`) |
 | Harness | Bash writes to `~/.claude` settings / hooks / plugins (and the same under `CLAUDE_CONFIG_DIR` when it is set), `.claude/settings*`, `.githooks`, `.git/config`, `.git/hooks` (submodules under `.git/modules/` included). Writes are redirects, `sed` / `perl` / `ruby -i`, `awk -i inplace`, file commands, `dd`, `rsync`, `curl -o`, `wget -O`, and `git checkout` / `restore` / `apply` / `am`; relative paths after `cd` count. Only the write target is judged, so reading a protected path (`cp ~/.claude/settings.json .`) is not blocked | Bash writes to `.claude/hooks`, `.claude/verify.sh`, `.github/workflows` |
 | Fetched code | `curl` / `wget` piped to a shell (`/bin/sh`, `env bash` ..., at any later stage) or an interpreter (`python3`, `perl`, `node` ...; right after `curl`, or later when it reads its program from stdin) | process substitution, `bash -c "$(curl ...)"`, `eval` |
 | Deleting | `rm -r` on `/` or `~` (after `--` and long options too) | `rm -r` outside build directories, `git clean`, `reset --hard`, `restore`, `checkout [<rev>] --`, `stash drop`, `branch -D`, `xargs rm`, `find -delete` / `-exec rm` |
@@ -73,6 +73,12 @@ A tool whose name contains `delete`, `destroy`, `drop`, `purge`, `remove`, `trun
 ### Commands chained to a sandbox-excluded command (`guard-chain.sh`)
 
 With the sandbox on, a command listed in `sandbox.excludedCommands` runs outside the sandbox only as the whole command. Chained with `&&`, `||`, `;`, `|` or a newline it runs inside the sandbox and fails (a git write under `.git`, a `gh` call). The guard reads `sandbox.enabled` and `sandbox.excludedCommands` from `~/.claude/settings.json` (`$CLAUDE_CONFIG_DIR/settings.json` when that is set), `.claude/settings.json` and `.claude/settings.local.json`, and blocks such a chain with a message to run each command in its own call. Quoted text, redirects such as `2>&1` and heredoc bodies are not separators. A pattern matches a whole segment; a trailing space-star (`git push *`) or `:*` also matches the bare command, and a one-word pattern (`git`) matches only the bare command. A command that cannot be read to the end (an unterminated quote) passes. Not seen: a chain inside `$(...)` or `bash -c "..."`, an environment prefix (`FOO=1 git push && ls`), a subshell, `if ...; then ...; fi`. It does nothing when the sandbox is off, no pattern is set, or the settings cannot be read. It is a usability aid, not a security guard, and has no setting to turn it off.
+
+The same hook also stops git global options in front of an excluded subcommand: `git -C /repo push` does not match `git push *`, so it runs inside the sandbox and fails. The options it looks through are `-C`, `-c`, `--git-dir`, `--work-tree`, `--namespace`, `--exec-path`, `--super-prefix`, `--attr-source`, `--config-env`, `--no-pager`, `-p` / `--paginate`, `-P`, `--no-optional-locks`, `--no-advice`, `--no-lazy-fetch`, `--bare`, `--no-replace-objects` and `--literal-pathspecs`; an option outside this list, or a value attached to `-C` (`-C/repo`), is not seen. It blocks only when the command with those options removed would match a pattern, and tells Claude to run it from the repository directory without the option. Like the chain check, it reads `git` only at the start of a segment (`sudo git -C ...` and a subshell are not seen).
+
+### PR title prefixes (`guard-pr-title.sh`)
+
+Off until `pr_title_prefixes` names at least one prefix (for example `feat`, `fix`, `docs`). Then `gh pr create` and `gh pr edit` are blocked when their `--title` / `-t` does not start with `<prefix>:`, `<prefix>(scope):` or `<prefix>!:` followed by a space, with a message to retry with a fitting prefix. A title it cannot read passes: none given (`--fill`), built by a variable or `$(...)`, a command that cannot be split into words, or a short option joined to its value (`-tbad`, `-ft bad`). With `--title` given twice, the first one is judged. `gh` counts only as a command (at the start, after `&&` `||` `;` `|`, or after `VAR=x`, `sudo`, `env`, `time` and similar), so `echo gh pr create --title x` and a heredoc body that mentions it pass. Style aid, not a security guard.
 
 ### Packs
 
@@ -128,6 +134,7 @@ Change them in the `/plugin` settings screen. They are read from user and manage
 |---|---|---|
 | `protected_branches` | `main`, `master` | branches push is blocked for (`*` matches any run of branch-name characters: `release/*`) |
 | `confirm_push` | `false` | ask before pushing a work branch |
+| `pr_title_prefixes` | empty (off) | prefixes a `gh pr create` / `gh pr edit` title must start with (`feat`, `fix`, ...) |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | enable the pack |
 | `verify_missing_notice` | `true` | tell once per session when files changed and `.claude/verify.sh` is missing |
 | `verify_max_retry` | `3` | verify loop retries per turn (1-10) |
@@ -185,6 +192,7 @@ bash tests/test-verify.sh   # verify loop
 bash tests/test-check-deps.sh  # dependency check at session start
 bash tests/test-check-enabled.sh  # warning for a project that switches the plugin off
 bash tests/test-chain.sh  # command chained to a sandbox-excluded command
+bash tests/test-pr-title.sh  # gh pr title without a required prefix
 bash tests/test-defaults.sh  # plugin.json defaults match the hooks' defaults
 bash tests/manual-check-onfailure.sh  # needs a logged-in claude: checks that onFailure "block" stops a tool call (not run by CI)
 bash tests/manual-check-multiple.sh  # needs a logged-in claude: shows the shape a multiple option reaches a hook in (not run by CI)

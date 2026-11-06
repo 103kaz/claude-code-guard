@@ -47,7 +47,7 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 | 守るブランチ | 守るブランチへの push (そのブランチにいて引数なしの `git push`、`heads/main`、`cd` や `GIT_DIR=` で移った先のリポジトリも)、`:` だけやワイルドカードの refspec | 空のリモートへの初回 push |
 | push の形 | `--no-verify`、`--mirror`、`--delete` / `-d` / `:ref`、`--prune`、`--all` | force push (`+ref` も)、`confirm_push` が有効なときの作業ブランチへの push |
 | フックの回避 | `core.hooksPath`、`git -c`、`--config-env`、`GIT_CONFIG_*`、alias と include の設定、core / alias / include のセクションの削除、`HOME=` / `XDG_CONFIG_HOME=` を変えた git、`~/.gitconfig` / `~/.config/git/config` の書き換え、commit / merge の `--no-verify` (`commit -n`) | |
-| 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、git の資格情報 (`~/.git-credentials`、`git credential fill`)、キーチェーンの値。`<`、`rev:`、`--opt=` の後の名前 (terraform の `-var-file=` は除く) と、展開するとこれらになるグロブやブレース (`.en?`、`.e{n,x}v`) も。名前は大文字小文字を区別しない (`.ENV`) | 文字列を組み立てるコマンド置換 (`cat $(printf .e%snv)`) |
+| 機密値 | `.env` / `.env.*` (サンプルを除く)、`*.tfvars`、`*.tfstate`、`*token*.txt`、`*.pem`、`*.key`、`~/.ssh`、署名資産、サービスアカウント鍵、CLI の認証情報、git の資格情報 (`~/.git-credentials`、`git credential fill`)、キーチェーンの値、`gitleaks dir` / `gitleaks detect --no-git` (gitignore 済みの機密ファイルまで読むため。`gitleaks git --redact` はコミットだけを見る)。`<`、`rev:`、`--opt=` の後の名前 (terraform の `-var-file=` は除く) と、展開するとこれらになるグロブやブレース (`.en?`、`.e{n,x}v`) も。名前は大文字小文字を区別しない (`.ENV`) | 文字列を組み立てるコマンド置換 (`cat $(printf .e%snv)`) |
 | ハーネス | `~/.claude` の settings・フック・プラグイン (`CLAUDE_CONFIG_DIR` があればその下も)、`.claude/settings*`、`.githooks`、`.git/config`、`.git/hooks` (`.git/modules/` の下のサブモジュールも) の Bash での書き換え。書き換えに数えるのは、リダイレクト、`sed` / `perl` / `ruby -i`、`awk -i inplace`、ファイルのコマンド、`dd`、`rsync`、`curl -o`、`wget -O`、`git checkout` / `restore` / `apply` / `am`。`cd` の後の相対パスも。保護パスは書き込み先だけで見るので、`cp ~/.claude/settings.json .` のようなコピー元の読み出しは止めません | `.claude/hooks`、`.claude/verify.sh`、`.github/workflows` の Bash での書き換え |
 | 取得したコードの実行 | `curl` / `wget` の出力を、シェル (`/bin/sh`、`env bash` など。パイプの何段後でも) やインタプリタ (`python3`、`perl`、`node` など。curl のすぐ次の段か、後ろの段で標準入力からプログラムを読む形) に渡すパイプ | プロセス置換、`bash -c "$(curl ...)"`、`eval` |
 | 消す操作 | ルートやホームへの `rm -r` (`--` や長いオプションの後も) | ビルドの生成物でないディレクトリの `rm -r`、`git clean`、`reset --hard`、`restore`、`checkout [<rev>] --`、`stash drop`、`branch -D`、`xargs rm`、`find -delete` / `-exec rm` |
@@ -73,6 +73,12 @@ bash 3.2 以上、`jq`、`perl` が要ります。対象は macOS と Linux で�
 ### サンドボックスの除外コマンドへの連結 (`guard-chain.sh`)
 
 サンドボックスが有効なとき、`sandbox.excludedCommands` に載るコマンドがサンドボックスの外で動くのは、コマンド全体がそれ 1 つのときだけです。`&&`、`||`、`;`、`|`、改行でつなぐとサンドボックスの中で動き、失敗します (`.git` への git の書き込み、`gh` の呼び出し)。このガードは `~/.claude/settings.json` (`CLAUDE_CONFIG_DIR` があれば `$CLAUDE_CONFIG_DIR/settings.json`)、`.claude/settings.json`、`.claude/settings.local.json` から `sandbox.enabled` と `sandbox.excludedCommands` を読み、そのような連結を block して、1 コマンドずつ別の呼び出しにするよう返します。引用符の中、`2>&1` などのリダイレクト、heredoc の本文は区切りに数えません。パターンは 1 つのセグメント全体に照合し、末尾の空白とアスタリスク (`git push *`) や `:*` は、引数のないコマンドにも一致します。`git` のように 1 語だけのパターンは、その語だけのコマンドに一致します。最後まで読めないコマンド (閉じていない引用符) は通します。見落とす形は、`$(...)` や `bash -c "..."` の中の連結、環境変数の接頭辞 (`FOO=1 git push && ls`)、サブシェル、`if ...; then ...; fi` です。サンドボックスが無効なとき、パターンが無いとき、設定を読めないときは何もしません。使いやすさのための補助で、セキュリティのガードではなく、外す設定もありません。
+
+同じフックは、除外コマンドのサブコマンドの前に git のグローバルオプションが付いた形も止めます。`git -C /repo push` は `git push *` に一致しないので、サンドボックスの中で動いて失敗します。読み飛ばすオプションは `-C`、`-c`、`--git-dir`、`--work-tree`、`--namespace`、`--exec-path`、`--super-prefix`、`--attr-source`、`--config-env`、`--no-pager`、`-p` / `--paginate`、`-P`、`--no-optional-locks`、`--no-advice`、`--no-lazy-fetch`、`--bare`、`--no-replace-objects`、`--literal-pathspecs` です。この一覧に無いオプションと、`-C` に値を連結した形 (`-C/repo`) は見ません。オプションを外した形がパターンに一致するときだけ block し、オプションを付けずにリポジトリのディレクトリで実行するよう返します。連結の検知と同じく、セグメントの先頭の `git` だけを見ます (`sudo git -C ...` やサブシェルは見ません)。
+
+### PR タイトルのプレフィックス (`guard-pr-title.sh`)
+
+`pr_title_prefixes` にプレフィックス (たとえば `feat`、`fix`、`docs`) を 1 つ以上書くまでは無効です。書くと、`gh pr create` と `gh pr edit` の `--title` / `-t` が `<プレフィックス>:`、`<プレフィックス>(scope):`、`<プレフィックス>!:` のあとに空白が続く形で始まらないとき block し、合うプレフィックスで打ち直すよう返します。読めないタイトルは通します (タイトルを渡していない `--fill`、変数や `$(...)` で組み立てたもの、単語に分けられないコマンド、値を連結した短いオプション `-tbad` / `-ft bad`)。`--title` が 2 回あるときは最初の値を判定します。`gh` はコマンドの位置 (先頭、`&&` `||` `;` `|` の後、`VAR=x` / `sudo` / `env` / `time` などの後) にあるときだけ数えるので、`echo gh pr create --title x` や、heredoc の本文に書いただけの `gh pr create` は通ります。スタイルの補助で、セキュリティのガードではありません。
 
 ### パック
 
@@ -128,6 +134,7 @@ exec "${CLAUDE_PROJECT_DIR:-.}/scripts/verify.sh"
 |---|---|---|
 | `protected_branches` | `main`、`master` | push を block するブランチ (`*` は任意の並びに合う: `release/*`) |
 | `confirm_push` | `false` | 作業ブランチへの push に確認を出す |
+| `pr_title_prefixes` | 空 (無効) | `gh pr create` / `gh pr edit` のタイトルが始まるべきプレフィックス (`feat`、`fix` など) |
 | `pack_github` / `pack_terraform` / `pack_gcp` / `pack_cloudflare` | `true` | パックの有効・無効 |
 | `verify_missing_notice` | `true` | `.claude/verify.sh` が無いままファイルが変わったとき、セッションにつき 1 回知らせる |
 | `verify_max_retry` | `3` | 検証ループの 1 回あたりのやり直しの回数 (1〜10) |
@@ -185,6 +192,7 @@ bash tests/test-verify.sh   # 検証ループ
 bash tests/test-check-deps.sh  # セッション開始時の依存の確認
 bash tests/test-check-enabled.sh  # プロジェクトがプラグインを外すときの警告
 bash tests/test-chain.sh  # サンドボックスの除外コマンドへの連結
+bash tests/test-pr-title.sh  # 必須のプレフィックスが無い gh pr のタイトル
 bash tests/test-defaults.sh  # plugin.json の default とフック側の既定が一致するか
 bash tests/manual-check-onfailure.sh  # ログイン済みの claude が要る: onFailure "block" がツールの呼び出しを止めるかの確認 (CI では流さない)
 bash tests/manual-check-multiple.sh  # ログイン済みの claude が要る: multiple の設定がフックに渡る形の確認 (CI では流さない)

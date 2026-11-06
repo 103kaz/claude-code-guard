@@ -39,5 +39,7 @@ jobs:
         run: bash tests/test-check-enabled.sh
       - name: Chained-command guard tests
         run: bash tests/test-chain.sh
+      - name: PR title guard tests
+        run: bash tests/test-pr-title.sh
       - name: Option default tests
         run: bash tests/test-defaults.sh

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- New: `gitleaks dir`, `gitleaks directory` and `gitleaks detect --no-git` are blocked. They read every file under the path, gitignored secrets (`.env`, keys) included. The message says to use `gitleaks git --redact`, which scans commits only.
+- `guard-chain.sh` also blocks git global options in front of an excluded subcommand (`git -C /repo push`, `git -c k=v commit`, `git --git-dir=... add`). `git push *` does not match them, so they ran inside the sandbox and failed. It blocks only when the command without those options would match an excluded pattern.
+- New hook `guard-pr-title.sh` and option `pr_title_prefixes` (default empty, off): with prefixes set, `gh pr create` / `gh pr edit` whose `--title` does not start with `<prefix>:`, `<prefix>(scope):` or `<prefix>!:` is blocked with a message to retry with a fitting prefix. A title it cannot read passes. `gh` counts only in command position, and heredoc bodies are skipped, so `echo gh pr create --title x` is not stopped.
+
 ## 0.5.4 (2026-10-28)
 
 - Fixed: the guards followed `~/.claude` only. With `CLAUDE_CONFIG_DIR` set, Claude's writes to the settings, hooks and plugins under that directory were not stopped, and the chained-command guard read the sandbox settings from `~/.claude/settings.json` instead of `$CLAUDE_CONFIG_DIR/settings.json`. Now the Bash guard blocks writes under `CLAUDE_CONFIG_DIR` as it does under `~/.claude` (the value as written and its real path, under HOME also as `~/x`, `$HOME/x` and `${HOME}/x`, quoted or not, in either letter case, only at the start of a path), and the spellings `$CLAUDE_CONFIG_DIR`, `"$CLAUDE_CONFIG_DIR"` and `${CLAUDE_CONFIG_DIR:-…}` are blocked even when the variable is not set. The file-tool guard asks before an Edit or Write under it, comparing the real path of the nearest existing directory too (a symlink, `/tmp` and `/private/tmp` on macOS). `~/.claude` stays protected, and the approvals of `verify.sh` stay under `~/.claude/code-guard/verify-trust/`, because the terminal where you approve may not have the variable. Not read by the Bash guard: a third spelling that appears neither in the setting nor as its real path, and a relative path after `cd $CLAUDE_CONFIG_DIR` (as with `cd $HOME/.claude`).
