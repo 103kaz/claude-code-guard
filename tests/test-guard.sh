@@ -396,6 +396,9 @@ check $BLOCK 'gitleaks "dir" .'
 check $BLOCK "gitleaks 'dir' ."
 check $BLOCK 'gitleaks "directory" .'
 check $BLOCK 'gitleaks file .'
+check $BLOCK 'gitleaks -v dir; echo done'
+check $BLOCK 'gitleaks dir&&echo done'
+check $BLOCK 'gitleaks detect --no-git; echo done'
 check $BLOCK 'gitleaks "file" .'
 check $BLOCK "gitleaks -c cfg.toml 'file' ."
 check $BLOCK 'gitleaks "detect" --no-git'
