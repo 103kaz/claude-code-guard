@@ -92,6 +92,18 @@ check 0 '.*' 'gh pr create --title "anything"'
 check 2 'feat,.*' 'gh pr create --title "anything"'
 check 0 'a|b,' 'gh pr create --title "anything"'
 
+# A "<<WORD" inside quotes is text, not a heredoc: the title after it is still read
+check 2 "$P" $'echo "<<EOF"\ngh pr create --title "bad title"'
+check 2 "$P" $'echo \'<<EOF\'\ngh pr create --title "bad title"'
+check 0 "$P" $'echo "<<EOF"\ngh pr create --title "feat: ok"'
+# A heredoc in $( ) inside quotes still drops its body
+check 0 "$P" $'gh pr create --title "feat: ok" --body "$(cat <<\'EOF\'\ngh pr create --title bad\nEOF\n)"'
+check 0 "$P" $'cat <<EOF\ngh pr create --title bad\nEOF'
+check 2 "$P" $'ls\ngh pr create --title "bad title"'
+# A title that ends in ";" is still read
+check 2 "$P" 'gh pr create --title="bad;" --body y'
+check 0 "$P" 'gh pr create --title="feat: ok;" --body y'
+
 # Broken input never blocks
 n=$((n + 1))
 printf 'not json' | CLAUDE_PLUGIN_OPTION_PR_TITLE_PREFIXES="$P" bash "$hook" >/dev/null 2>&1 || ng "invalid input was not passed"

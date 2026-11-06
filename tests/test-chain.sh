@@ -76,6 +76,15 @@ check 0 'git commit -m "msg -C /x push"'
 check 0 'echo git -C /r push'
 check 0 'git -C /repo pull --rebase'
 check 2 'git -C /repo pull --ff-only'
+check 2 "git '-C' /repo push"
+check 2 'git "-C" /repo add -A'
+check 2 "git '-c' user.name=x commit -m y"
+check 2 'git -c "k=a b" commit -m y'
+check 2 'git --config-env NAME=VAR push'
+check 2 'git --config-env=NAME=VAR push'
+# Not detected: the environment prefix hides git from the pattern as well
+check 0 'FOO=1 git -C /r push'
+check 0 'env git -C /r push'
 
 # Quotes, redirects and heredocs do not chain
 check 0 'git commit -m "fix a && b; c | d"'

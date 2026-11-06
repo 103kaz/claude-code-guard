@@ -186,11 +186,13 @@ my @re = map {
 
 if ($mode eq 'gitopts') {
   my $word = qr/"[^"]*"|'[^']*'|\S+/;
-  my $opt = qr/ (?:(?:-C|-c|--git-dir|--work-tree|--namespace) $word|--(?:git-dir|work-tree|namespace)=$word|--(?:exec-path|super-prefix|attr-source|config-env)=$word|--exec-path|--no-pager|-p|--paginate|-P|--no-optional-locks|--no-advice|--no-lazy-fetch|--bare|--no-replace-objects|--literal-pathspecs)/;
+  my $opt = qr/ (?:(?:-C|-c|--git-dir|--work-tree|--namespace|--config-env) $word|--(?:git-dir|work-tree|namespace)=$word|--(?:exec-path|super-prefix|attr-source|config-env)=$word|--exec-path|--no-pager|-p|--paginate|-P|--no-optional-locks|--no-advice|--no-lazy-fetch|--bare|--no-replace-objects|--literal-pathspecs)/;
   for my $s (@seg) {
     my $t = $s;
     $t =~ s/\s+/ /g;
     next if grep { $t =~ $_ } @re;    # matches as written: nothing hidden
+    # The shell removes the quotes of a quoted option name: git '-C' /r push is git -C /r push
+    $t =~ s/ (["'])(-{1,2}[A-Za-z][A-Za-z-]*)\1(?= |=|\z)/ $2/g;
     my $stripped = $t;
     next unless $stripped =~ s/\Agit(?:$opt)+ /git /;
     for my $r (@re) {

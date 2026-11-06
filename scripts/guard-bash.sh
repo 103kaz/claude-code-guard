@@ -615,8 +615,11 @@ fi
 # --- gitleaks scanning a directory instead of git history (core) ---
 # gitleaks dir (and the older detect --no-git) reads every file under the path, gitignored secrets (.env, keys) included.
 # gitleaks git --redact scans the commits only
-# Options before the subcommand may take a value (gitleaks -c cfg.toml dir .), so an option may be followed by one word
-if grep -Eq "${P}gitleaks([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)?)*[[:space:]]+(dir|directory)([[:space:]]|$)|${P}gitleaks[[:space:]]+detect([^|;&]*)[[:space:]]--no-git(=(true|TRUE|True|t|T|1))?([[:space:]]|$)" <<<"$cmd_msg"; then
+# Options before the subcommand may take a value (gitleaks -c cfg.toml dir .; the value may be quoted and hold spaces), so
+# an option may be followed by one word. The subcommand may be quoted too (gitleaks "dir" .). A command that only prints or
+# searches (echo "gitleaks dir", grep) is read from cmd_scan, where the quoted text is emptied
+GL_OPTS="([[:space:]]+-[^[:space:]]+([[:space:]]+(\"[^\"]*\"|'[^']*'|[^-[:space:]\"'][^[:space:]]*))?)*"
+if grep -Eq "${P}gitleaks${GL_OPTS}[[:space:]]+(dir|directory|\"(dir|directory)\"|'(dir|directory)')([[:space:]]|$)|${P}gitleaks${GL_OPTS}[[:space:]]+(detect|\"detect\"|'detect')([^|;&]*)[[:space:]]--no-git(=(true|TRUE|True|t|T|1))?([[:space:]]|$)" <<<"$cmd_scan"; then
   block "gitleaks dir / detect --no-git reads gitignored secret files too. Use 'gitleaks git --redact' (scans the commits only)"
 fi
 
